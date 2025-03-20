@@ -10,22 +10,25 @@ import (
 )
 
 var (
-	appKey       = mustGetEnv("APP_KEY")
-	recipientKey = mustGetEnv("RECIPIENT_KEY")
-	device       = mustGetEnv("DEVICE_NAME")
+	appKey       = getEnvWithDefault("APP_KEY", "")
+	recipientKey = getEnvWithDefault("RECIPIENT_KEY", "")
+	device       = getEnvWithDefault("DEVICE_NAME", "default-device")
 )
 
-func mustGetEnv(key string) string {
-	val := os.Getenv(key)
-	if val == "" {
-		log.Fatalf("missing required environment variable: %s", key)
+func getEnvWithDefault(key string, defaultValue string) string {
+	if val, exists := os.LookupEnv(key); exists {
+		return val
 	}
-	return val
+	return defaultValue
 }
 
 func main() {
 	if len(os.Args) < 3 {
 		log.Fatal("usage: ./pushover <message> <title>")
+	}
+
+	if appKey == "" || recipientKey == "" {
+		log.Fatal("Both APP_KEY and RECIPIENT_KEY environment variables must be set")
 	}
 
 	app := pushover.New(appKey)

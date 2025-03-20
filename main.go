@@ -11,37 +11,36 @@ import (
 )
 
 var (
-	appKey      = os.Getenv("APP_KEY")
-	recipentKey = os.Getenv("RECIPENT_KEY")
-	device      = os.Getenv("DEVICE_NAME")
+	appKey      = mustGetEnv("APP_KEY")
+	recipientKey = mustGetEnv("RECIPIENT_KEY")
+	device      = mustGetEnv("DEVICE_NAME")
 )
 
+func mustGetEnv(key string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		log.Fatalf("missing required environment variable: %s", key)
+	}
+	return val
+}
+
 func main() {
-	// Create a new pushover app with a token
+	if len(os.Args) < 3 {
+		log.Fatal("usage: ./pushover <message> <title>")
+	}
+
 	app := pushover.New(appKey)
+	recipient := pushover.NewRecipient(recipientKey)
 
-	// Create a new recipient
-	recipient := pushover.NewRecipient(recipentKey)
-
-	// Create the message to send
-	// message := pushover.NewMessageWithTitle(os.Args[1], os.Args[2])
-	message := &pushover.Message{
-		Message:    os.Args[1],
-		Title:      os.Args[2],
-		Priority:   pushover.PriorityLowest,
-		Timestamp:  time.Now().Unix(),
-		Expire:     3 * time.Minute,
-		DeviceName: device,
-		Sound:      pushover.SoundVibrate,
+	message := pushover.NewMessageWithTitle(os.Args[1], os.Args[2])
+	message.Priority = pushover.PriorityLowest
+	message.Timestamp = time.Now().Unix()
+	message.Expire = 3 * time.Minute
+	message.DeviceName = device
+	message.Sound = pushover.SoundVibrate
+	if _, err := app.SendMessage(message, recipient); err != nil {
+		log.Fatalf("failed to send message: %v", err)
 	}
-	// Send the message to the recipient
-	response, err := app.SendMessage(message, recipient)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	// Print the response if you want
-	log.Println(response)
-
 }
 
 // Send message to Watch complications

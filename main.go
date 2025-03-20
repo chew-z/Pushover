@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"time"
@@ -11,9 +10,9 @@ import (
 )
 
 var (
-	appKey      = mustGetEnv("APP_KEY")
+	appKey       = mustGetEnv("APP_KEY")
 	recipientKey = mustGetEnv("RECIPIENT_KEY")
-	device      = mustGetEnv("DEVICE_NAME")
+	device       = mustGetEnv("DEVICE_NAME")
 )
 
 func mustGetEnv(key string) string {
@@ -43,6 +42,8 @@ func main() {
 	}
 }
 
+// This never worked really well - complicatons suck
+//
 // Send message to Watch complications
 // title := firstN(os.Args[1], 100)
 // text := firstN(os.Args[2], 100)

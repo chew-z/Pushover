@@ -1,3 +1,5 @@
 bin/**
 .env
 go.sum
+.aider*
+CONVENTIONS.md

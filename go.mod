@@ -1,8 +1,8 @@
-module pushover
+module Pushover
 
-go 1.17
+go 1.24.1
 
 require (
-	github.com/gregdel/pushover v1.1.1-0.20211021122135-1025e0ddff2f
-	github.com/joho/godotenv v1.4.0
+	github.com/gregdel/pushover v1.3.1
+	github.com/joho/godotenv v1.5.1
 )

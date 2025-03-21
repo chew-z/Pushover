@@ -3,3 +3,4 @@ bin/**
 go.sum
 .aider*
 CONVENTIONS.md
+codemcp.toml

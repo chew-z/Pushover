@@ -48,30 +48,3 @@ func main() {
 		log.Fatalf("failed to send message: %v", err)
 	}
 }
-
-// This never worked really well - complicatons suck
-//
-// Send message to Watch complications
-// title := firstN(os.Args[1], 100)
-// text := firstN(os.Args[2], 100)
-// subtext := firstN(os.Args[3], 100)
-// count := 480
-// pct := 36
-// // Test Glances API
-// fmt.Println(app.SendGlanceUpdate(&pushover.Glance{
-// 	Title:      &title,
-// 	Text:       &text,
-// 	Subtext:    &subtext,
-// 	Count:      &count,
-// 	Percent:    &pct,
-// 	DeviceName: device,
-// }, recipient))
-
-// func firstN(s string, n int) string {
-// 	if len(s) < 1 {
-// 		return ""
-// 	} else if len(s) > n {
-// 		return s[:n]
-// 	}
-// 	return s
-// }

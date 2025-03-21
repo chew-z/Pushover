@@ -162,7 +162,7 @@ func TestCreateMessage(t *testing.T) {
 	assert.Equal(t, "test_device", message.DeviceName)
 	assert.Equal(t, pushover.SoundVibrate, message.Sound)
 	assert.True(t, time.Now().Unix()-message.Timestamp < 5) // Should be recent
-	assert.Equal(t, 180, message.Expire)
+	assert.Equal(t, time.Duration(180*time.Second), message.Expire)
 }
 
 func TestSendNotification(t *testing.T) {

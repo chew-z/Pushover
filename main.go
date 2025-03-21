@@ -93,7 +93,7 @@ func CreateMessage(text, title string, config Config) *pushover.Message {
 	message := pushover.NewMessageWithTitle(text, title)
 	message.Priority = pushover.PriorityLow
 	message.Timestamp = time.Now().Unix()
-	message.Expire = 180
+	message.Expire = time.Duration(180 * time.Second)
 	message.DeviceName = config.DeviceName
 	message.Sound = pushover.SoundVibrate
 	

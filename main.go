@@ -34,23 +34,14 @@ type Config struct {
 	DefaultTitle string
 }
 
-// LoadConfig loads the configuration from environment variables with fallbacks
+// LoadConfig loads the configuration from environment variables
 func LoadConfig() Config {
 	return Config{
-		AppKey:       getEnvWithFallback("APP_KEY", ""),
-		RecipientKey: getEnvWithFallback("RECIPIENT_KEY", ""),
+		AppKey:       os.Getenv("APP_KEY"),
+		RecipientKey: os.Getenv("RECIPIENT_KEY"),
 		DeviceName:   os.Getenv("DEVICE_NAME"),
 		DefaultTitle: "",
 	}
-}
-
-// getEnvWithFallback returns the environment variable value or the fallback if not set
-func getEnvWithFallback(key, fallback string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
-	}
-	return value
 }
 
 // ParseArgs parses command-line arguments and returns the message and title
@@ -72,13 +63,15 @@ func NewPushoverClient(config Config) (PushoverClient, *pushover.Recipient) {
 	appKey := config.AppKey
 	recipientKey := config.RecipientKey
 
-	// Apply fallbacks for required keys
+	// Validate required keys
 	if appKey == "" {
-		appKey = "a84t4wvdijbn3pcjtpbhnb1vivdn7m" // Fallback app key
+		log.Println("Error: APP_KEY environment variable is required")
+		return nil, nil
 	}
 
 	if recipientKey == "" {
-		recipientKey = "gqq7a1wbs4b7nkahg6nemr7jyfprox" // Fallback recipient key
+		log.Println("Error: RECIPIENT_KEY environment variable is required")
+		return nil, nil
 	}
 
 	// Create the app and recipient
@@ -119,6 +112,9 @@ func main() {
 
 	// Create Pushover client
 	client, recipient := NewPushoverClient(config)
+	if client == nil || recipient == nil {
+		os.Exit(1)
+	}
 
 	// Create the message
 	pushMessage := CreateMessage(message, title, config)

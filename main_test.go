@@ -102,8 +102,9 @@ func TestParseArgs(t *testing.T) {
 
 func TestNewPushoverClient(t *testing.T) {
 	tests := []struct {
-		name   string
-		config Config
+		name      string
+		config    Config
+		expectNil bool
 	}{
 		{
 			name: "With app key and recipient key",
@@ -120,6 +121,7 @@ func TestNewPushoverClient(t *testing.T) {
 				RecipientKey: "test_recipient_key",
 				DeviceName:   "test_device",
 			},
+			expectNil: true,
 		},
 		{
 			name: "Without recipient key",
@@ -128,6 +130,7 @@ func TestNewPushoverClient(t *testing.T) {
 				RecipientKey: "",
 				DeviceName:   "test_device",
 			},
+			expectNil: true,
 		},
 		{
 			name: "Without app key and recipient key",
@@ -136,14 +139,20 @@ func TestNewPushoverClient(t *testing.T) {
 				RecipientKey: "",
 				DeviceName:   "test_device",
 			},
+			expectNil: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client, recipient := NewPushoverClient(tt.config)
-			assert.NotNil(t, client)
-			assert.NotNil(t, recipient)
+			if tt.expectNil {
+				assert.Nil(t, client)
+				assert.Nil(t, recipient)
+			} else {
+				assert.NotNil(t, client)
+				assert.NotNil(t, recipient)
+			}
 		})
 	}
 }

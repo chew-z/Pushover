@@ -58,34 +58,34 @@ func ParseArgs(args []string) (message, title string, err error) {
 	if len(args) < 2 {
 		return "", "", errors.New("usage: push <message> [<title>]")
 	}
-	
+
 	message = args[1]
 	if len(args) > 2 {
 		title = args[2]
 	}
-	
+
 	return message, title, nil
 }
 
 // NewPushoverClient creates a new Pushover client with the given configuration
-func NewPushoverClient(config Config) (PushoverClient, *pushover.Recipient, error) {
+func NewPushoverClient(config Config) (PushoverClient, *pushover.Recipient) {
 	appKey := config.AppKey
 	recipientKey := config.RecipientKey
-	
+
 	// Apply fallbacks for required keys
 	if appKey == "" {
 		appKey = "a84t4wvdijbn3pcjtpbhnb1vivdn7m" // Fallback app key
 	}
-	
+
 	if recipientKey == "" {
 		recipientKey = "gqq7a1wbs4b7nkahg6nemr7jyfprox" // Fallback recipient key
 	}
-	
+
 	// Create the app and recipient
 	app := pushover.New(appKey)
 	recipient := pushover.NewRecipient(recipientKey)
-	
-	return &RealPushoverApp{app: app}, recipient, nil
+
+	return &RealPushoverApp{app: app}, recipient
 }
 
 // CreateMessage creates a new Pushover message with the given parameters
@@ -96,7 +96,7 @@ func CreateMessage(text, title string, config Config) *pushover.Message {
 	message.Expire = time.Duration(180 * time.Second)
 	message.DeviceName = config.DeviceName
 	message.Sound = pushover.SoundVibrate
-	
+
 	return message
 }
 
@@ -109,29 +109,25 @@ func SendNotification(client PushoverClient, message *pushover.Message, recipien
 func main() {
 	// Load configuration
 	config := LoadConfig()
-	
+
 	// Parse command-line arguments
 	message, title, err := ParseArgs(os.Args)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
-	
+
 	// Create Pushover client
-	client, recipient, err := NewPushoverClient(config)
-	if err != nil {
-		log.Printf("failed to create Pushover client: %v", err)
-		os.Exit(1)
-	}
-	
+	client, recipient := NewPushoverClient(config)
+
 	// Create the message
 	pushMessage := CreateMessage(message, title, config)
-	
+
 	// Send the notification
 	if err := SendNotification(client, pushMessage, recipient); err != nil {
 		log.Printf("failed to send message: %v", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Println("Notification sent successfully")
 }

@@ -27,7 +27,7 @@ func TestLoadConfig(t *testing.T) {
 	originalAppKey := os.Getenv("APP_KEY")
 	originalRecipientKey := os.Getenv("RECIPIENT_KEY")
 	originalDevice := os.Getenv("DEVICE_NAME")
-	
+
 	// Cleanup after test
 	defer func() {
 		os.Setenv("APP_KEY", originalAppKey)
@@ -39,17 +39,17 @@ func TestLoadConfig(t *testing.T) {
 	os.Setenv("APP_KEY", "test_app_key")
 	os.Setenv("RECIPIENT_KEY", "test_recipient_key")
 	os.Setenv("DEVICE_NAME", "test_device")
-	
+
 	config := LoadConfig()
 	assert.Equal(t, "test_app_key", config.AppKey)
 	assert.Equal(t, "test_recipient_key", config.RecipientKey)
 	assert.Equal(t, "test_device", config.DeviceName)
-	
+
 	// Test with empty environment variables
 	os.Setenv("APP_KEY", "")
 	os.Setenv("RECIPIENT_KEY", "")
 	os.Setenv("DEVICE_NAME", "")
-	
+
 	config = LoadConfig()
 	assert.Equal(t, "", config.AppKey)
 	assert.Equal(t, "", config.RecipientKey)
@@ -84,11 +84,11 @@ func TestParseArgs(t *testing.T) {
 			expectError: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			msg, title, err := ParseArgs(tt.args)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -138,11 +138,10 @@ func TestNewPushoverClient(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, recipient, err := NewPushoverClient(tt.config)
-			assert.NoError(t, err)
+			client, recipient := NewPushoverClient(tt.config)
 			assert.NotNil(t, client)
 			assert.NotNil(t, recipient)
 		})
@@ -153,9 +152,9 @@ func TestCreateMessage(t *testing.T) {
 	config := Config{
 		DeviceName: "test_device",
 	}
-	
+
 	message := CreateMessage("Test message", "Test title", config)
-	
+
 	assert.Equal(t, "Test message", message.Message)
 	assert.Equal(t, "Test title", message.Title)
 	assert.Equal(t, pushover.PriorityLow, message.Priority)
@@ -169,18 +168,18 @@ func TestSendNotification(t *testing.T) {
 	mockClient := new(MockPushoverClient)
 	message := pushover.NewMessage("Test message")
 	recipient := pushover.NewRecipient("test_recipient_key")
-	
+
 	// Success case
 	mockClient.On("SendMessage", message, recipient).Return(&pushover.Response{}, nil).Once()
 	err := SendNotification(mockClient, message, recipient)
 	assert.NoError(t, err)
-	
+
 	// Error case
 	mockErr := errors.New("invalid user key")
 	mockClient.On("SendMessage", message, recipient).Return(&pushover.Response{}, mockErr).Once()
 	err = SendNotification(mockClient, message, recipient)
 	assert.Error(t, err)
-	
+
 	mockClient.AssertExpectations(t)
 }
 
@@ -193,23 +192,23 @@ func TestIntegrationFlow(t *testing.T) {
 		RecipientKey: "test_recipient_key",
 		DeviceName:   "test_device",
 	}
-	
+
 	// Parse arguments
 	msg, title, err := ParseArgs([]string{"push", "Test message", "Test title"})
 	assert.NoError(t, err)
-	
+
 	// Create message
 	message := CreateMessage(msg, title, config)
-	
+
 	// Setup mock client expectation
-	_, recipient, _ := NewPushoverClient(config)
+		_, recipient := NewPushoverClient(config)
 	mockClient.On("SendMessage", mock.MatchedBy(func(m *pushover.Message) bool {
 		return m.Message == "Test message" && m.Title == "Test title"
 	}), recipient).Return(&pushover.Response{}, nil)
-	
+
 	// Send notification
 	err = SendNotification(mockClient, message, recipient)
 	assert.NoError(t, err)
-	
+
 	mockClient.AssertExpectations(t)
 }

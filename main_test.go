@@ -1,223 +1,172 @@
 package main
 
 import (
-	"errors"
-	"os"
 	"testing"
-	"time"
 
 	"github.com/gregdel/pushover"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
-// MockPushoverClient is a mock implementation of the PushoverClient interface
+// MockPushoverClient implements PushoverClient for testing
 type MockPushoverClient struct {
-	mock.Mock
+	lastMessage   *pushover.Message
+	lastRecipient *pushover.Recipient
+	shouldError   bool
 }
 
-// SendMessage mocks the SendMessage method
 func (m *MockPushoverClient) SendMessage(message *pushover.Message, recipient *pushover.Recipient) (*pushover.Response, error) {
-	args := m.Called(message, recipient)
-	return args.Get(0).(*pushover.Response), args.Error(1)
+	m.lastMessage = message
+	m.lastRecipient = recipient
+	
+	if m.shouldError {
+		return nil, &pushover.Response{Status: 0, Errors: []string{"mock error"}}
+	}
+	
+	return &pushover.Response{Status: 1}, nil
 }
 
-func TestLoadConfig(t *testing.T) {
-	// Save original env vars to restore later
-	originalAppKey := os.Getenv("APP_KEY")
-	originalRecipientKey := os.Getenv("RECIPIENT_KEY")
-	originalDevice := os.Getenv("DEVICE_NAME")
-
-	// Cleanup after test
-	defer func() {
-		os.Setenv("APP_KEY", originalAppKey)
-		os.Setenv("RECIPIENT_KEY", originalRecipientKey)
-		os.Setenv("DEVICE_NAME", originalDevice)
-	}()
-
-	// Test with environment variables set
-	os.Setenv("APP_KEY", "test_app_key")
-	os.Setenv("RECIPIENT_KEY", "test_recipient_key")
-	os.Setenv("DEVICE_NAME", "test_device")
-
-	config := LoadConfig()
-	assert.Equal(t, "test_app_key", config.AppKey)
-	assert.Equal(t, "test_recipient_key", config.RecipientKey)
-	assert.Equal(t, "test_device", config.DeviceName)
-
-	// Test with empty environment variables
-	os.Setenv("APP_KEY", "")
-	os.Setenv("RECIPIENT_KEY", "")
-	os.Setenv("DEVICE_NAME", "")
-
-	config = LoadConfig()
-	assert.Equal(t, "", config.AppKey)
-	assert.Equal(t, "", config.RecipientKey)
-	assert.Equal(t, "", config.DeviceName)
-}
-
-func TestParseArgs(t *testing.T) {
-	tests := []struct {
-		name          string
-		args          []string
-		expectedMsg   string
-		expectedTitle string
-		expectError   bool
-	}{
-		{
-			name:          "Message without title",
-			args:          []string{"push", "Test message"},
-			expectedMsg:   "Test message",
-			expectedTitle: "",
-			expectError:   false,
-		},
-		{
-			name:          "Message with title",
-			args:          []string{"push", "Test message", "Test title"},
-			expectedMsg:   "Test message",
-			expectedTitle: "Test title",
-			expectError:   false,
-		},
-		{
-			name:        "No message provided",
-			args:        []string{"push"},
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			msg, title, err := ParseArgs(tt.args)
-
-			if tt.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.expectedMsg, msg)
-				assert.Equal(t, tt.expectedTitle, title)
-			}
-		})
-	}
-}
-
-func TestNewPushoverClient(t *testing.T) {
-	tests := []struct {
-		name      string
-		config    Config
-		expectNil bool
-	}{
-		{
-			name: "With app key and recipient key",
-			config: Config{
-				AppKey:       "test_app_key",
-				RecipientKey: "test_recipient_key",
-				DeviceName:   "test_device",
-			},
-		},
-		{
-			name: "Without app key",
-			config: Config{
-				AppKey:       "",
-				RecipientKey: "test_recipient_key",
-				DeviceName:   "test_device",
-			},
-			expectNil: true,
-		},
-		{
-			name: "Without recipient key",
-			config: Config{
-				AppKey:       "test_app_key",
-				RecipientKey: "",
-				DeviceName:   "test_device",
-			},
-			expectNil: true,
-		},
-		{
-			name: "Without app key and recipient key",
-			config: Config{
-				AppKey:       "",
-				RecipientKey: "",
-				DeviceName:   "test_device",
-			},
-			expectNil: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client, recipient := NewPushoverClient(tt.config)
-			if tt.expectNil {
-				assert.Nil(t, client)
-				assert.Nil(t, recipient)
-			} else {
-				assert.NotNil(t, client)
-				assert.NotNil(t, recipient)
-			}
-		})
-	}
-}
-
-func TestCreateMessage(t *testing.T) {
+func TestCreateMessage_UseDefaultTitle(t *testing.T) {
 	config := Config{
-		DeviceName: "test_device",
+		DefaultTitle: "Default Title",
+		Priority:     int(pushover.PriorityNormal),
+		Sound:        pushover.SoundVibrate,
+		ExpireTime:   300,
 	}
-
-	message := CreateMessage("Test message", "Test title", config)
-
-	assert.Equal(t, "Test message", message.Message)
-	assert.Equal(t, "Test title", message.Title)
-	assert.Equal(t, pushover.PriorityLow, message.Priority)
-	assert.Equal(t, "test_device", message.DeviceName)
-	assert.Equal(t, pushover.SoundVibrate, message.Sound)
-	assert.True(t, time.Now().Unix()-message.Timestamp < 5) // Should be recent
-	assert.Equal(t, time.Duration(180*time.Second), message.Expire)
+	
+	cliArgs := &CLIArgs{
+		Message: "Test message",
+		Title:   "", // Empty title should use default
+	}
+	
+	msg := CreateMessage("Test message", "", config, cliArgs)
+	
+	if msg.Title != "Default Title" {
+		t.Errorf("Expected title 'Default Title', got '%s'", msg.Title)
+	}
 }
 
-func TestSendNotification(t *testing.T) {
-	mockClient := new(MockPushoverClient)
-	message := pushover.NewMessage("Test message")
-	recipient := pushover.NewRecipient("test_recipient_key")
-
-	// Success case
-	mockClient.On("SendMessage", message, recipient).Return(&pushover.Response{}, nil).Once()
-	err := SendNotification(mockClient, message, recipient)
-	assert.NoError(t, err)
-
-	// Error case
-	mockErr := errors.New("invalid user key")
-	mockClient.On("SendMessage", message, recipient).Return(&pushover.Response{}, mockErr).Once()
-	err = SendNotification(mockClient, message, recipient)
-	assert.Error(t, err)
-
-	mockClient.AssertExpectations(t)
-}
-
-// Integration test that combines multiple components
-func TestIntegrationFlow(t *testing.T) {
-	// Setup
-	mockClient := new(MockPushoverClient)
+func TestCreateMessage_CLIOverridesConfig(t *testing.T) {
 	config := Config{
-		AppKey:       "test_app_key",
-		RecipientKey: "test_recipient_key",
-		DeviceName:   "test_device",
+		Priority:   int(pushover.PriorityLow),
+		Sound:      pushover.SoundVibrate,
+		ExpireTime: 180,
 	}
+	
+	cliArgs := &CLIArgs{
+		Message:    "Test message",
+		Priority:   int(pushover.PriorityHigh),
+		Sound:      pushover.SoundSiren,
+		ExpireTime: 600,
+	}
+	
+	msg := CreateMessage("Test message", "Test title", config, cliArgs)
+	
+	if msg.Priority != int(pushover.PriorityHigh) {
+		t.Errorf("Expected priority %d, got %d", pushover.PriorityHigh, msg.Priority)
+	}
+	
+	if msg.Sound != pushover.SoundSiren {
+		t.Errorf("Expected sound %s, got %s", pushover.SoundSiren, msg.Sound)
+	}
+	
+	expectedExpire := 600
+	if int(msg.Expire.Seconds()) != expectedExpire {
+		t.Errorf("Expected expire %d seconds, got %d", expectedExpire, int(msg.Expire.Seconds()))
+	}
+}
 
-	// Parse arguments
-	msg, title, err := ParseArgs([]string{"push", "Test message", "Test title"})
-	assert.NoError(t, err)
+func TestRun_WithMockClient(t *testing.T) {
+	mockClient := &MockPushoverClient{}
+	
+	// Simulate command line: pushover -m "test message" -t "test title"
+	args := []string{"pushover", "-m", "test message", "-t", "test title"}
+	
+	err := Run(args, mockClient)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	
+	if mockClient.lastMessage == nil {
+		t.Error("Expected message to be sent")
+		return
+	}
+	
+	if mockClient.lastMessage.Message != "test message" {
+		t.Errorf("Expected message 'test message', got '%s'", mockClient.lastMessage.Message)
+	}
+	
+	if mockClient.lastMessage.Title != "test title" {
+		t.Errorf("Expected title 'test title', got '%s'", mockClient.lastMessage.Title)
+	}
+}
 
-	// Create message
-	message := CreateMessage(msg, title, config)
+func TestParseArgs_ShowHelp(t *testing.T) {
+	args := []string{"pushover", "-h"}
+	
+	cliArgs, err := ParseArgs(args)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	
+	if !cliArgs.ShowHelp {
+		t.Error("Expected ShowHelp to be true")
+	}
+}
 
-	// Setup mock client expectation
-		_, recipient := NewPushoverClient(config)
-	mockClient.On("SendMessage", mock.MatchedBy(func(m *pushover.Message) bool {
-		return m.Message == "Test message" && m.Title == "Test title"
-	}), recipient).Return(&pushover.Response{}, nil)
+func TestParseArgs_ShowVersion(t *testing.T) {
+	args := []string{"pushover", "-version"}
+	
+	cliArgs, err := ParseArgs(args)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	
+	if !cliArgs.ShowVersion {
+		t.Error("Expected ShowVersion to be true")
+	}
+}
 
-	// Send notification
-	err = SendNotification(mockClient, message, recipient)
-	assert.NoError(t, err)
+func TestParseArgs_PositionalArgs(t *testing.T) {
+	args := []string{"pushover", "test message", "test title"}
+	
+	cliArgs, err := ParseArgs(args)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	
+	if cliArgs.Message != "test message" {
+		t.Errorf("Expected message 'test message', got '%s'", cliArgs.Message)
+	}
+	
+	if cliArgs.Title != "test title" {
+		t.Errorf("Expected title 'test title', got '%s'", cliArgs.Title)
+	}
+}
 
-	mockClient.AssertExpectations(t)
+func TestParseArgs_MissingMessage(t *testing.T) {
+	args := []string{"pushover"}
+	
+	_, err := ParseArgs(args)
+	if err == nil {
+		t.Error("Expected error for missing message")
+	}
+}
+
+func TestNewPushoverClient_MissingKeys(t *testing.T) {
+	config := Config{
+		AppKey:       "",
+		RecipientKey: "test",
+	}
+	
+	_, _, err := NewPushoverClient(config)
+	if err == nil {
+		t.Error("Expected error for missing APP_KEY")
+	}
+	
+	config.AppKey = "test"
+	config.RecipientKey = ""
+	
+	_, _, err = NewPushoverClient(config)
+	if err == nil {
+		t.Error("Expected error for missing RECIPIENT_KEY")
+	}
 }

@@ -207,11 +207,8 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) *pushove
 	}
 	message.DeviceName = deviceName
 	
-	// Only set timestamp if it's reasonable (within 30 seconds of now)
-	now := time.Now()
-	if now.Unix() > 0 {
-		message.Timestamp = now.Unix()
-	}
+	// Set timestamp to now
+	message.Timestamp = time.Now().Unix()
 
 	return message
 }

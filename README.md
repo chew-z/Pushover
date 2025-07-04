@@ -6,13 +6,13 @@ A robust command-line utility for sending notifications via Pushover with extens
 
 ### Build from source
 ```bash
-go build -o bin/push .
+go build -o bin/pushover .
 ```
 
 ### Install the binary
 ```bash
 # Copy the binary to your PATH
-cp bin/push /usr/local/bin/push
+cp bin/pushover /usr/local/bin/pushover
 ```
 
 ## Usage
@@ -20,25 +20,25 @@ cp bin/push /usr/local/bin/push
 ### Basic Usage
 ```bash
 # Using flags
-push -m "Your task has completed" -t "Task Notification"
+pushover -m "Your task has completed" -t "Task Notification"
 
 # Using positional arguments (backwards compatible)
-push "Your task has completed" "Task Notification"
+pushover "Your task has completed" "Task Notification"
 ```
 
 ### Advanced Usage
 ```bash
 # Set high priority and custom sound
-push -m "Critical alert" -t "System Alert" -p 1 -s siren
+pushover -m "Critical alert" -t "System Alert" -p 1 -s siren
 
 # Send to specific device with custom expire time
-push -m "Build completed" -d "iPhone" -e 3600
+pushover -m "Build completed" -d "iPhone" -e 3600
 
 # Show help
-push -h
+pushover -h
 
 # Show version
-push -version
+pushover -version
 ```
 
 ## Configuration
@@ -98,7 +98,7 @@ PUSHOVER_EXPIRE=180
 
 ### Build
 ```bash
-go build -o bin/push .
+go build -o bin/pushover .
 ```
 
 ### Testing

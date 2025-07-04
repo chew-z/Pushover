@@ -1,0 +1,95 @@
+# 1) In the http{} context, map URI prefixes to their backend URLs
+map $uri $mcp_backend {
+    # regex must come before default
+    ~^/pushover/   http://127.0.0.1:8092;
+    ~^/outlines/   http://127.0.0.1:8090;
+    ~^/goodreads/  http://127.0.0.1:8088;
+    ~^/godoc/      http://127.0.0.1:8086;
+    ~^/time/       http://127.0.0.1:8084;
+    ~^/gemini/     http://127.0.0.1:8082;
+    default        "";
+}
+
+
+# 3) In your SSL server block, replace all those individual “location /outlines/ { … }” blocks with:
+
+server {
+    server_name sadhu.rrj.pl; # managed by Certbot
+    listen [::]:443 ssl ipv6only=on; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/sadhu.rrj.pl/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/sadhu.rrj.pl/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+    # Enable HTTP/2 (optional).
+    http2 on;
+    root /var/www/html;
+    index index.html; 
+
+    proxy_set_header Early-Data $ssl_early_data;
+    # HTTP Security Headers
+    add_header X-Frame-Options DENY;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+    add_header Strict-Transport-Security "max-age=63072000";
+
+    # https://stackoverflow.com/questions/8768946/dealing-with-nginx-400-the-plain-http-request-was-sent-to-https-port-error/12610382#12610382
+    # If they come here using HTTP, bounce them to the correct scheme
+    error_page 497 https://$host:$server_port$request_uri;
+    # Micro caching
+        
+    location /ip {
+        default_type text/plain;
+        return 200 "$remote_addr\n";
+    }
+
+    # catch anything headed for an MCP
+    location ~ ^/(?:outlines|goodreads|gemini|time|godoc|pushover)/(.*)$ {
+        # if they hit a non-MCP path, drop them
+        if ($mcp_backend = "") { return 444; }
+        # strip the prefix and forward everything else
+        proxy_pass $mcp_backend/$1$is_args$args;
+        # pull in all the shared proxy & CORS logic
+        include snippets/mcp.conf;
+    }
+
+    # your normal “site” location
+    location / {
+        # rate-limit, try_files, etc
+        limit_conn  conn_limit_per_ip 5;
+        limit_req   zone=req_limit_per_ip burst=5 nodelay;
+        limit_req_status 460;
+        try_files $uri $uri/ =404;
+    }
+}
+
+# 4) Keep your port 80 → HTTPS redirect server as you have it.
+server {
+    listen 80  default_server;
+    listen [::]:80;
+    # This is just an invalid value which will never trigger on a real hostname
+    server_name _;
+
+    # HTTP/1.0 is robots and nothing else - https://stackoverflow.com/questions/2073392
+    if ($server_protocol = HTTP/1.0) { return 444; }access_log /var/log/nginx/spam.log;
+
+    location ~ \.(aspx|php|jsp|cgi|gz)$ {
+        return 444;
+        access_log /var/log/nginx/spam.log;
+    }
+
+    location ~ /\.(?!well-known\/) {
+        return 444;
+        access_log /var/log/nginx/spam.log;
+    }
+
+    location / {
+    # don't answer to random bots who don't know our hostname only search via IP
+        return 444;
+        access_log /var/log/nginx/spam.log;
+    }
+    # return 301 https://www.google.com/teapot;
+    # return 301 https://sadhu.rrj.pl$request_uri;
+}
+

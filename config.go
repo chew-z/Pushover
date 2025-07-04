@@ -14,7 +14,6 @@ import (
 type MCPConfig struct {
 	// HTTP transport settings
 	HTTPAddress     string
-	HTTPPath        string
 	HTTPStateless   bool
 	HTTPHeartbeat   time.Duration
 	HTTPTimeout     time.Duration
@@ -38,7 +37,6 @@ type MCPConfig struct {
 // Default configuration values
 const (
 	defaultHTTPAddress     = ":8080"
-	defaultHTTPPath        = "/mcp"
 	defaultHTTPStateless   = false
 	defaultHTTPHeartbeat   = 30 * time.Second
 	defaultHTTPTimeout     = 30 * time.Second
@@ -52,7 +50,6 @@ func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
 	config := &MCPConfig{
 		// HTTP transport settings
 		HTTPAddress:     getEnvWithDefault("PUSHOVER_HTTP_ADDRESS", defaultHTTPAddress),
-		HTTPPath:        getEnvWithDefault("PUSHOVER_HTTP_PATH", defaultHTTPPath),
 		HTTPStateless:   parseEnvBool("PUSHOVER_HTTP_STATELESS", defaultHTTPStateless),
 		HTTPHeartbeat:   parseEnvDuration("PUSHOVER_HTTP_HEARTBEAT", defaultHTTPHeartbeat),
 		HTTPTimeout:     parseEnvDuration("PUSHOVER_HTTP_TIMEOUT", defaultHTTPTimeout),

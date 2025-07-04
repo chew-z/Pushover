@@ -41,9 +41,6 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 	// Configure stateless mode
 	opts = append(opts, server.WithStateLess(hsm.config.HTTPStateless))
 
-	// Configure endpoint path
-	opts = append(opts, server.WithEndpointPath(hsm.config.HTTPPath))
-
 	// Configure authentication middleware
 	if hsm.config.AuthEnabled {
 		authMiddleware := NewAuthMiddleware(hsm.config.AuthSecretKey, hsm.config.AuthEnabled)
@@ -56,8 +53,10 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 	// Create custom HTTP server with additional endpoints
 	mux := http.NewServeMux()
 
-	// Mount the MCP server at the configured path
-	mux.Handle(hsm.config.HTTPPath+"/", hsm.mcpServer)
+	// Mount the MCP server to handle both /mcp and /mcp/ paths
+	// This ensures consistent behavior regardless of trailing slashes
+	mux.Handle("/mcp", hsm.mcpServer)
+	mux.Handle("/mcp/", hsm.mcpServer)
 
 	// Add health endpoint
 	mux.HandleFunc("/health", hsm.handleHealth)
@@ -91,7 +90,7 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("MCP Pushover server starting on %s%s", hsm.config.HTTPAddress, hsm.config.HTTPPath)
+		log.Printf("MCP Pushover server starting on %s/mcp", hsm.config.HTTPAddress)
 		if err := hsm.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server error: %v", err)
 		}

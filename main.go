@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gregdel/pushover"
@@ -98,6 +99,46 @@ func hasSubcommand(args []string) (string, bool) {
 		return subcommand, true
 	default:
 		return "", false
+	}
+}
+
+// validateSubcommandOrExit checks for invalid subcommands and exits with helpful error
+func validateSubcommandOrExit(args []string) {
+	if len(args) < 2 {
+		return // No subcommand provided, proceed with CLI mode
+	}
+
+	firstArg := args[1]
+	
+	// Check for common typos or similar-looking commands
+	switch firstArg {
+	case "mpc", "mcr", "mcp-server", "server", "serve":
+		fmt.Fprintf(os.Stderr, "Error: Unknown subcommand '%s'\n", firstArg)
+		fmt.Fprintf(os.Stderr, "Did you mean 'mcp'?\n\n")
+		fmt.Fprintf(os.Stderr, "Available subcommands:\n")
+		fmt.Fprintf(os.Stderr, "  mcp    Start MCP server mode\n\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n")
+		fmt.Fprintf(os.Stderr, "  %s mcp [OPTIONS]     # Start MCP server\n", args[0])
+		fmt.Fprintf(os.Stderr, "  %s mcp -h            # Show MCP help\n", args[0])
+		fmt.Fprintf(os.Stderr, "  %s -h                # Show main help\n", args[0])
+		os.Exit(1)
+	}
+	
+	// Check if it starts with a dash (likely a flag intended for CLI mode)
+	if strings.HasPrefix(firstArg, "-") {
+		return // This is a CLI flag, proceed with CLI mode
+	}
+	
+	// Check if it looks like a subcommand but isn't recognized
+	if !strings.Contains(firstArg, " ") && len(firstArg) > 1 && firstArg != strings.ToLower(firstArg) {
+		// Likely a typo in subcommand (mixed case, single word)
+		fmt.Fprintf(os.Stderr, "Error: Unknown subcommand '%s'\n", firstArg)
+		fmt.Fprintf(os.Stderr, "Available subcommands:\n")
+		fmt.Fprintf(os.Stderr, "  mcp    Start MCP server mode\n\n")
+		fmt.Fprintf(os.Stderr, "For CLI usage (sending notifications), use:\n")
+		fmt.Fprintf(os.Stderr, "  %s -m \"your message\"  # Send notification\n", args[0])
+		fmt.Fprintf(os.Stderr, "  %s -h                 # Show help\n", args[0])
+		os.Exit(1)
 	}
 }
 
@@ -620,7 +661,10 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 
 
 func main() {
-	// Check for subcommands first
+	// Validate subcommands first to catch typos and provide helpful errors
+	validateSubcommandOrExit(os.Args)
+	
+	// Check for subcommands
 	if subcommand, hasSubcmd := hasSubcommand(os.Args); hasSubcmd {
 		switch subcommand {
 		case "mcp":

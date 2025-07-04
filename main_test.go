@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/gregdel/pushover"
@@ -18,7 +19,7 @@ func (m *MockPushoverClient) SendMessage(message *pushover.Message, recipient *p
 	m.lastRecipient = recipient
 	
 	if m.shouldError {
-		return nil, &pushover.Response{Status: 0, Errors: []string{"mock error"}}
+		return nil, errors.New("mock error")
 	}
 	
 	return &pushover.Response{Status: 1}, nil

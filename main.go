@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gregdel/pushover"
@@ -92,53 +91,13 @@ func hasSubcommand(args []string) (string, bool) {
 	if len(args) < 2 {
 		return "", false
 	}
-
+	
 	subcommand := args[1]
 	switch subcommand {
 	case "mcp":
 		return subcommand, true
 	default:
 		return "", false
-	}
-}
-
-// validateSubcommandOrExit checks for invalid subcommands and exits with helpful error
-func validateSubcommandOrExit(args []string) {
-	if len(args) < 2 {
-		return // No subcommand provided, proceed with CLI mode
-	}
-
-	firstArg := args[1]
-
-	// Check for common typos or similar-looking commands
-	switch firstArg {
-	case "mpc", "mcr", "mcp-server", "server", "serve":
-		fmt.Fprintf(os.Stderr, "Error: Unknown subcommand '%s'\n", firstArg)
-		fmt.Fprintf(os.Stderr, "Did you mean 'mcp'?\n\n")
-		fmt.Fprintf(os.Stderr, "Available subcommands:\n")
-		fmt.Fprintf(os.Stderr, "  mcp    Start MCP server mode\n\n")
-		fmt.Fprintf(os.Stderr, "Usage:\n")
-		fmt.Fprintf(os.Stderr, "  %s mcp [OPTIONS]     # Start MCP server\n", args[0])
-		fmt.Fprintf(os.Stderr, "  %s mcp -h            # Show MCP help\n", args[0])
-		fmt.Fprintf(os.Stderr, "  %s -h                # Show main help\n", args[0])
-		os.Exit(1)
-	}
-
-	// Check if it starts with a dash (likely a flag intended for CLI mode)
-	if strings.HasPrefix(firstArg, "-") {
-		return // This is a CLI flag, proceed with CLI mode
-	}
-
-	// Check if it looks like a subcommand but isn't recognized
-	if !strings.Contains(firstArg, " ") && len(firstArg) > 1 && firstArg != strings.ToLower(firstArg) {
-		// Likely a typo in subcommand (mixed case, single word)
-		fmt.Fprintf(os.Stderr, "Error: Unknown subcommand '%s'\n", firstArg)
-		fmt.Fprintf(os.Stderr, "Available subcommands:\n")
-		fmt.Fprintf(os.Stderr, "  mcp    Start MCP server mode\n\n")
-		fmt.Fprintf(os.Stderr, "For CLI usage (sending notifications), use:\n")
-		fmt.Fprintf(os.Stderr, "  %s -m \"your message\"  # Send notification\n", args[0])
-		fmt.Fprintf(os.Stderr, "  %s -h                 # Show help\n", args[0])
-		os.Exit(1)
 	}
 }
 
@@ -219,7 +178,7 @@ func showMCPHelp(progName string) {
 	fmt.Fprintln(os.Stdout, "  PUSHOVER_SOUND                 Default sound")
 	fmt.Fprintln(os.Stdout, "  PUSHOVER_EXPIRE                Default expire time")
 	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_ADDRESS          Server bind address (default \":8080\")")
-
+	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_PATH             Endpoint path (default \"/mcp\")")
 	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_STATELESS        Session management mode (default false)")
 	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_HEARTBEAT        Heartbeat interval (default \"30s\")")
 	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_TIMEOUT          Request timeout (default \"30s\")")
@@ -290,7 +249,7 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 func parseMCPArgs(args []string) error {
 	// Create a new flag set for MCP subcommand
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
-
+	
 	// MCP-specific flags
 	var (
 		authEnabled     = fs.Bool("auth-enabled", false, "Enable JWT authentication for HTTP transport")
@@ -303,35 +262,35 @@ func parseMCPArgs(args []string) error {
 		showHelp        = fs.Bool("h", false, "Show help")
 		showHelp2       = fs.Bool("help", false, "Show help")
 	)
-
+	
 	// Custom usage function for MCP
 	fs.Usage = func() {
 		showMCPHelp(args[0])
 	}
-
+	
 	// Parse arguments, skipping the program name and "mcp" subcommand
 	if err := fs.Parse(args[2:]); err != nil {
 		return err
 	}
-
+	
 	// Handle help flag
 	if *showHelp || *showHelp2 {
 		fs.Usage()
 		return nil
 	}
-
+	
 	// Set global flags from local variables
 	// We need to update the global variables that the MCP functions use
 	if *authEnabled {
 		// Set environment variable to enable auth
 		os.Setenv("PUSHOVER_AUTH_ENABLED", "true")
 	}
-
+	
 	// Handle token generation
 	if *generateToken {
 		return generateTokenFromArgs(*tokenUserID, *tokenUsername, *tokenRole, *tokenExpiration)
 	}
-
+	
 	// Run MCP server with the specified transport
 	return runMCPServerWithTransport(*transportMode, *authEnabled)
 }
@@ -381,7 +340,7 @@ func runMCPServerWithTransport(transport string, authEnabled bool) error {
 		return server.ServeStdio(mcpServer)
 
 	case "http":
-		log.Printf("Starting MCP server with HTTP transport on %s/mcp...", config.HTTPAddress)
+		log.Printf("Starting MCP server with HTTP transport on %s%s...", config.HTTPAddress, config.HTTPPath)
 		httpManager := NewHTTPServerManager(mcpServer, config)
 		return httpManager.Start(mcpServer)
 
@@ -659,17 +618,15 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	return mcp.NewToolResultText(responseText), nil
 }
 
-func main() {
-	// Validate subcommands first to catch typos and provide helpful errors
-	validateSubcommandOrExit(os.Args)
 
-	// Check for subcommands
+func main() {
+	// Check for subcommands first
 	if subcommand, hasSubcmd := hasSubcommand(os.Args); hasSubcmd {
 		switch subcommand {
 		case "mcp":
 			// Configure logging for server mode
 			log.SetFlags(log.LstdFlags)
-
+			
 			// Parse MCP subcommand arguments
 			if err := parseMCPArgs(os.Args); err != nil {
 				log.Printf("MCP error: %v", err)

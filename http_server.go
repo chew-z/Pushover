@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -42,6 +41,9 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 	// Configure stateless mode
 	opts = append(opts, server.WithStateLess(hsm.config.HTTPStateless))
 
+	// Configure endpoint path
+	opts = append(opts, server.WithEndpointPath(hsm.config.HTTPPath))
+
 	// Configure authentication middleware
 	if hsm.config.AuthEnabled {
 		authMiddleware := NewAuthMiddleware(hsm.config.AuthSecretKey, hsm.config.AuthEnabled)
@@ -54,25 +56,8 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 	// Create custom HTTP server with additional endpoints
 	mux := http.NewServeMux()
 
-	// Mount the MCP server with a custom handler that strips the /mcp prefix
-	// This ensures the MCP server receives paths in the format it expects
-	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
-		// Strip the /mcp prefix from the path
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/mcp")
-		if r.URL.Path == "" {
-			r.URL.Path = "/"
-		}
-		hsm.mcpServer.ServeHTTP(w, r)
-	})
-
-	mux.HandleFunc("/mcp/", func(w http.ResponseWriter, r *http.Request) {
-		// Strip the /mcp prefix from the path
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/mcp")
-		if r.URL.Path == "" {
-			r.URL.Path = "/"
-		}
-		hsm.mcpServer.ServeHTTP(w, r)
-	})
+	// Mount the MCP server at the root path
+	mux.Handle("/", hsm.mcpServer)
 
 	// Add health endpoint
 	mux.HandleFunc("/health", hsm.handleHealth)
@@ -106,7 +91,7 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("MCP Pushover server starting on %s/mcp", hsm.config.HTTPAddress)
+		log.Printf("MCP Pushover server starting on %s%s", hsm.config.HTTPAddress, hsm.config.HTTPPath)
 		if err := hsm.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server error: %v", err)
 		}

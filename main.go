@@ -55,21 +55,23 @@ const version = "1.0.0"
 
 // LoadConfig loads the configuration from environment variables
 func LoadConfig() Config {
-	priority, _ := strconv.Atoi(os.Getenv("PUSHOVER_PRIORITY"))
-	if priority == 0 {
-		priority = int(pushover.PriorityLow)
+	// Parse priority with error handling, default to PriorityLow
+	priority := int(pushover.PriorityLow)
+	if p, err := strconv.Atoi(os.Getenv("PUSHOVER_PRIORITY")); err == nil && p != 0 {
+		priority = p
 	}
-	
+
 	sound := os.Getenv("PUSHOVER_SOUND")
 	if sound == "" {
 		sound = pushover.SoundVibrate
 	}
-	
-	expireTime, _ := strconv.Atoi(os.Getenv("PUSHOVER_EXPIRE"))
-	if expireTime == 0 {
-		expireTime = 180
+
+	// Parse expire time with error handling, default to 180 seconds
+	expireTime := 180
+	if e, err := strconv.Atoi(os.Getenv("PUSHOVER_EXPIRE")); err == nil && e != 0 {
+		expireTime = e
 	}
-	
+
 	return Config{
 		AppKey:       os.Getenv("APP_KEY"),
 		RecipientKey: os.Getenv("RECIPIENT_KEY"),
@@ -84,9 +86,9 @@ func LoadConfig() Config {
 // ParseArgs parses command-line arguments using the flag package
 func ParseArgs(args []string) (*CLIArgs, error) {
 	fs := flag.NewFlagSet("pushover", flag.ContinueOnError)
-	
+
 	cliArgs := &CLIArgs{}
-	
+
 	fs.StringVar(&cliArgs.Message, "m", "", "Message to send (required)")
 	fs.StringVar(&cliArgs.Message, "message", "", "Message to send (required)")
 	fs.StringVar(&cliArgs.Title, "t", "", "Message title")
@@ -102,7 +104,7 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 	fs.BoolVar(&cliArgs.ShowVersion, "version", false, "Show version")
 	fs.BoolVar(&cliArgs.ShowHelp, "h", false, "Show help")
 	fs.BoolVar(&cliArgs.ShowHelp, "help", false, "Show help")
-	
+
 	// Custom usage function
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: %s [OPTIONS]\n", args[0])
@@ -118,21 +120,21 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 		fmt.Fprintln(fs.Output(), "  PUSHOVER_SOUND    Default sound")
 		fmt.Fprintln(fs.Output(), "  PUSHOVER_EXPIRE   Default expire time")
 	}
-	
+
 	if err := fs.Parse(args[1:]); err != nil {
 		return nil, err
 	}
-	
+
 	if cliArgs.ShowHelp {
 		fs.Usage()
 		return cliArgs, nil
 	}
-	
+
 	if cliArgs.ShowVersion {
 		fmt.Printf("pushover version %s\n", version)
 		return cliArgs, nil
 	}
-	
+
 	// Check for positional arguments as fallback
 	remaining := fs.Args()
 	if cliArgs.Message == "" && len(remaining) > 0 {
@@ -141,11 +143,11 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 			cliArgs.Title = remaining[1]
 		}
 	}
-	
+
 	if cliArgs.Message == "" {
 		return nil, errors.New("message is required")
 	}
-	
+
 	return cliArgs, nil
 }
 
@@ -176,37 +178,37 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) *pushove
 	if title == "" && config.DefaultTitle != "" {
 		title = config.DefaultTitle
 	}
-	
+
 	message := pushover.NewMessageWithTitle(text, title)
-	
+
 	// Set priority (CLI args override config)
 	priority := config.Priority
 	if cliArgs.Priority != 0 {
 		priority = cliArgs.Priority
 	}
 	message.Priority = priority
-	
+
 	// Set sound (CLI args override config)
 	sound := config.Sound
 	if cliArgs.Sound != "" {
 		sound = cliArgs.Sound
 	}
 	message.Sound = sound
-	
+
 	// Set expire time (CLI args override config)
 	expireTime := config.ExpireTime
 	if cliArgs.ExpireTime != 0 {
 		expireTime = cliArgs.ExpireTime
 	}
 	message.Expire = time.Duration(expireTime) * time.Second
-	
+
 	// Set device name (CLI args override config)
 	deviceName := config.DeviceName
 	if cliArgs.DeviceName != "" {
 		deviceName = cliArgs.DeviceName
 	}
 	message.DeviceName = deviceName
-	
+
 	// Set timestamp to now
 	message.Timestamp = time.Now().Unix()
 
@@ -229,7 +231,7 @@ func Run(args []string, client PushoverClient) error {
 	if err != nil {
 		return fmt.Errorf("argument parsing failed: %w", err)
 	}
-	
+
 	// Handle help and version flags
 	if cliArgs.ShowHelp || cliArgs.ShowVersion {
 		return nil // Already handled in ParseArgs
@@ -262,7 +264,7 @@ func Run(args []string, client PushoverClient) error {
 func main() {
 	// Configure logging
 	log.SetFlags(0) // Clean output without timestamps
-	
+
 	err := Run(os.Args, nil)
 	if err != nil {
 		log.Printf("Error: %v", err)

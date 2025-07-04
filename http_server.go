@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -53,10 +54,25 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 	// Create custom HTTP server with additional endpoints
 	mux := http.NewServeMux()
 
-	// Mount the MCP server to handle both /mcp and /mcp/ paths
-	// This ensures consistent behavior regardless of trailing slashes
-	mux.Handle("/mcp", hsm.mcpServer)
-	mux.Handle("/mcp/", hsm.mcpServer)
+	// Mount the MCP server with a custom handler that strips the /mcp prefix
+	// This ensures the MCP server receives paths in the format it expects
+	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
+		// Strip the /mcp prefix from the path
+		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/mcp")
+		if r.URL.Path == "" {
+			r.URL.Path = "/"
+		}
+		hsm.mcpServer.ServeHTTP(w, r)
+	})
+
+	mux.HandleFunc("/mcp/", func(w http.ResponseWriter, r *http.Request) {
+		// Strip the /mcp prefix from the path
+		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/mcp")
+		if r.URL.Path == "" {
+			r.URL.Path = "/"
+		}
+		hsm.mcpServer.ServeHTTP(w, r)
+	})
 
 	// Add health endpoint
 	mux.HandleFunc("/health", hsm.handleHealth)

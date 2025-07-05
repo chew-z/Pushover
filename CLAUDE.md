@@ -11,18 +11,20 @@ This is a well-architected Go command-line utility for sending push notification
 ## Architecture & Design Patterns
 
 ### Core Design Principles
-- **Single Package Architecture**: All functionality in `main` package with clear functional separation
+- **Modular File Architecture**: Functionality split across focused files while maintaining single package design
 - **Interface-Based Design**: `PushoverClient` interface enables comprehensive mocking and testing
 - **Dependency Injection**: `Run()` function accepts client interface for flexible testing scenarios
 - **Configuration Management**: Environment-based config with CLI argument override capability
 - **Error Handling**: Proper error propagation without `log.Fatal` (follows project conventions)
+- **Separation of Concerns**: Each file has a single responsibility for specific functionality
 
 ### Key Design Strengths
 1. **Testability**: Interface abstraction enables comprehensive unit and integration testing
-2. **Maintainability**: Clear separation of concerns and single responsibility principle
+2. **Maintainability**: Clear separation of concerns across focused files (45-194 lines each vs 600+ line monolith)
 3. **Flexibility**: Multiple configuration methods (environment, CLI args, positional)
 4. **Robustness**: Comprehensive input validation and graceful error handling
 5. **User Experience**: Rich help system with environment variable documentation
+6. **Readability**: Smaller, focused files are easier to navigate and understand
 
 ## Key Components & Functions
 
@@ -159,8 +161,15 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 
 ## File Structure & Key Locations
 
-### Core Files
-- **`main.go`**: Complete application logic (single file architecture)
+### Core Files (Post-Refactoring)
+- **`main.go`**: Simplified entry point and subcommand routing (45 lines)
+- **`pushover.go`**: Pushover client interface and implementation (93 lines)
+- **`cli.go`**: CLI argument parsing and main app logic (165 lines)
+- **`mcp_server.go`**: MCP server setup and handlers (194 lines)
+- **`mcp_cli.go`**: MCP subcommand argument parsing (127 lines)
+- **`config.go`**: Configuration management for both CLI and MCP modes
+- **`auth.go`**: JWT-based authentication middleware
+- **`http_server.go`**: HTTP transport server with health endpoints
 - **`main_test.go`**: Comprehensive test suite with mock implementations
 - **`go.mod`**: Dependency management and Go version requirements
 - **`CLAUDE.md`**: This development guide
@@ -179,17 +188,25 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 ## Architecture Insights for Development
 
 ### When Adding Features
-1. **Maintain Interface Contract**: Ensure `PushoverClient` interface remains stable
-2. **Add Corresponding Tests**: Every new feature requires mock testing
-3. **Update CLI Help**: Document new flags and options
-4. **Environment Variable Support**: Consider environment variable equivalents
-5. **Error Handling**: Follow existing error propagation patterns
+1. **Choose Appropriate File**: Add functionality to the most relevant file (e.g., CLI features in `cli.go`, MCP features in `mcp_server.go`)
+2. **Maintain Interface Contract**: Ensure `PushoverClient` interface remains stable
+3. **Add Corresponding Tests**: Every new feature requires mock testing
+4. **Update CLI Help**: Document new flags and options in the appropriate help function
+5. **Environment Variable Support**: Consider environment variable equivalents in `config.go`
+6. **Error Handling**: Follow existing error propagation patterns
 
 ### When Modifying Configuration
-1. **Preserve Backwards Compatibility**: Maintain existing environment variable names
-2. **Add Validation**: Ensure new config options have proper validation
-3. **Update Documentation**: Document new variables and their defaults
-4. **Test Override Behavior**: Verify CLI arguments properly override environment
+1. **Update `config.go`**: All configuration changes should be centralized in the config file
+2. **Preserve Backwards Compatibility**: Maintain existing environment variable names
+3. **Add Validation**: Ensure new config options have proper validation
+4. **Update Documentation**: Document new variables and their defaults
+5. **Test Override Behavior**: Verify CLI arguments properly override environment
+
+### When Adding New Files
+1. **Follow Naming Convention**: Use descriptive names that indicate the file's purpose
+2. **Keep Files Focused**: Each file should have a single responsibility (e.g., `auth.go` for authentication, `http_server.go` for HTTP transport)
+3. **Maintain Package Structure**: All files remain in the `main` package
+4. **Update Documentation**: Add new files to the file structure section above
 
 ### When Debugging Issues
 1. **Check Environment Loading**: Verify `.env` file format and variable names
@@ -197,6 +214,7 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 3. **Test with Mock**: Use mock client to isolate API vs. application issues
 4. **Check Priority Values**: Verify priority is within valid range (-2 to 2)
 5. **Validate Device Names**: Ensure device names match registered devices
+6. **File-Specific Debugging**: Check the appropriate file for functionality (e.g., CLI issues in `cli.go`, MCP issues in `mcp_server.go`)
 
 ## MCP Server Capabilities
 

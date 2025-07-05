@@ -10,6 +10,17 @@ import (
 	"github.com/gregdel/pushover"
 )
 
+// Config holds the application configuration
+type Config struct {
+	AppKey       string
+	RecipientKey string
+	DeviceName   string
+	DefaultTitle string
+	Priority     int
+	Sound        string
+	ExpireTime   int
+}
+
 // MCPConfig holds the MCP server configuration
 type MCPConfig struct {
 	// HTTP transport settings
@@ -46,6 +57,36 @@ const (
 	defaultAuthEnabled     = false
 	defaultExpireTime      = 180
 )
+
+// LoadConfig loads the configuration from environment variables
+func LoadConfig() Config {
+	// Parse priority with error handling, default to PriorityLow
+	priority := int(pushover.PriorityLow)
+	if p, err := strconv.Atoi(os.Getenv("PUSHOVER_PRIORITY")); err == nil && p != 0 {
+		priority = p
+	}
+
+	sound := os.Getenv("PUSHOVER_SOUND")
+	if sound == "" {
+		sound = pushover.SoundVibrate
+	}
+
+	// Parse expire time with error handling, default to 180 seconds
+	expireTime := 180
+	if e, err := strconv.Atoi(os.Getenv("PUSHOVER_EXPIRE")); err == nil && e != 0 {
+		expireTime = e
+	}
+
+	return Config{
+		AppKey:       os.Getenv("APP_KEY"),
+		RecipientKey: os.Getenv("RECIPIENT_KEY"),
+		DeviceName:   os.Getenv("DEVICE_NAME"),
+		DefaultTitle: os.Getenv("DEFAULT_TITLE"),
+		Priority:     priority,
+		Sound:        sound,
+		ExpireTime:   expireTime,
+	}
+}
 
 // NewMCPConfig creates a new MCP configuration from environment variables and flags
 func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {

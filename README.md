@@ -322,19 +322,30 @@ curl -X POST http://localhost:8080/mcp \
 ## Architecture
 
 ### Design Principles
-- **Single Package Architecture**: All functionality in `main` package with clear separation
+- **Modular File Architecture**: Functionality split across focused files while maintaining single package design
 - **Interface-Based Design**: `PushoverClient` interface enables comprehensive mocking
 - **Dependency Injection**: Flexible testing and configuration
 - **Subcommand Structure**: Clean separation between CLI and MCP modes via `mcp` subcommand
 - **Dual Mode Operation**: Same binary supports CLI and MCP server modes
 - **Security First**: JWT authentication and input validation
+- **Separation of Concerns**: Each file has a single responsibility for specific functionality
 
 ### Key Components
-- **`main.go`**: Core application logic and MCP server implementation
+- **`main.go`**: Simplified entry point and subcommand routing (45 lines)
+- **`pushover.go`**: Pushover client interface and implementation (93 lines)
+- **`cli.go`**: CLI argument parsing and main app logic (165 lines)
+- **`mcp_server.go`**: MCP server setup and handlers (194 lines)
+- **`mcp_cli.go`**: MCP subcommand argument parsing (127 lines)
 - **`config.go`**: Configuration management for both CLI and MCP modes
 - **`auth.go`**: JWT-based authentication middleware
 - **`http_server.go`**: HTTP transport server with health endpoints
 - **`main_test.go`**: Comprehensive test suite with mocking
+
+### Architecture Benefits
+- **Maintainability**: Smaller, focused files (45-194 lines) vs previous 600+ line monolith
+- **Readability**: Easy to navigate and understand individual components
+- **Testability**: Components can be tested in isolation
+- **Modularity**: Changes to one aspect don't affect unrelated functionality
 
 ## Security Considerations
 

@@ -22,7 +22,7 @@ type HTTPServerManager struct {
 }
 
 // NewHTTPServerManager creates a new HTTP server manager
-func NewHTTPServerManager(mcpServer *server.MCPServer, config *MCPConfig) *HTTPServerManager {
+func NewHTTPServerManager(config *MCPConfig) *HTTPServerManager {
 	return &HTTPServerManager{
 		config: config,
 	}

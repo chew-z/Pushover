@@ -27,14 +27,17 @@ type Claims struct {
 	ExpiresAt int64  `json:"exp"`
 }
 
+// contextKey is a custom type for context keys to avoid collisions
+type contextKey string
+
 // Context keys for storing authentication information
 const (
-	contextKeyUserID        = "user_id"
-	contextKeyUsername      = "username"
-	contextKeyRole          = "role"
-	contextKeyAuthError     = "auth_error"
-	contextKeyHTTPMethod    = "http_method"
-	contextKeyAuthenticated = "authenticated"
+	contextKeyUserID        contextKey = "user_id"
+	contextKeyUsername      contextKey = "username"
+	contextKeyRole          contextKey = "role"
+	contextKeyAuthError     contextKey = "auth_error"
+	contextKeyHTTPMethod    contextKey = "http_method"
+	contextKeyAuthenticated contextKey = "authenticated"
 )
 
 // NewAuthMiddleware creates a new authentication middleware
@@ -188,7 +191,7 @@ func (am *AuthMiddleware) GenerateJWT(userID, username, role string, expirationH
 
 // getUserID retrieves the user ID from the context
 //
-//nolint:deadcode,unused // Part of complete auth API, may be needed for future features
+//nolint:unused // Part of complete auth API, may be needed for future features
 func getUserID(ctx context.Context) string {
 	if userID, ok := ctx.Value(contextKeyUserID).(string); ok {
 		return userID
@@ -206,7 +209,7 @@ func getUsername(ctx context.Context) string {
 
 // getRole retrieves the user role from the context
 //
-//nolint:deadcode,unused // Part of complete auth API, may be needed for future features  
+//nolint:unused // Part of complete auth API, may be needed for future features
 func getRole(ctx context.Context) string {
 	if role, ok := ctx.Value(contextKeyRole).(string); ok {
 		return role

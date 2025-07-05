@@ -91,7 +91,7 @@ func hasSubcommand(args []string) (string, bool) {
 	if len(args) < 2 {
 		return "", false
 	}
-	
+
 	subcommand := args[1]
 	switch subcommand {
 	case "mcp":
@@ -249,7 +249,7 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 func parseMCPArgs(args []string) error {
 	// Create a new flag set for MCP subcommand
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
-	
+
 	// MCP-specific flags
 	var (
 		authEnabled     = fs.Bool("auth-enabled", false, "Enable JWT authentication for HTTP transport")
@@ -262,35 +262,35 @@ func parseMCPArgs(args []string) error {
 		showHelp        = fs.Bool("h", false, "Show help")
 		showHelp2       = fs.Bool("help", false, "Show help")
 	)
-	
+
 	// Custom usage function for MCP
 	fs.Usage = func() {
 		showMCPHelp(args[0])
 	}
-	
+
 	// Parse arguments, skipping the program name and "mcp" subcommand
 	if err := fs.Parse(args[2:]); err != nil {
 		return err
 	}
-	
+
 	// Handle help flag
 	if *showHelp || *showHelp2 {
 		fs.Usage()
 		return nil
 	}
-	
+
 	// Set global flags from local variables
 	// We need to update the global variables that the MCP functions use
 	if *authEnabled {
 		// Set environment variable to enable auth
 		os.Setenv("PUSHOVER_AUTH_ENABLED", "true")
 	}
-	
+
 	// Handle token generation
 	if *generateToken {
 		return generateTokenFromArgs(*tokenUserID, *tokenUsername, *tokenRole, *tokenExpiration)
 	}
-	
+
 	// Run MCP server with the specified transport
 	return runMCPServerWithTransport(*transportMode, *authEnabled)
 }
@@ -341,7 +341,7 @@ func runMCPServerWithTransport(transport string, authEnabled bool) error {
 
 	case "http":
 		log.Printf("Starting MCP server with HTTP transport on %s%s...", config.HTTPAddress, config.HTTPPath)
-		httpManager := NewHTTPServerManager(mcpServer, config)
+		httpManager := NewHTTPServerManager(config)
 		return httpManager.Start(mcpServer)
 
 	default:
@@ -618,7 +618,6 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	return mcp.NewToolResultText(responseText), nil
 }
 
-
 func main() {
 	// Check for subcommands first
 	if subcommand, hasSubcmd := hasSubcommand(os.Args); hasSubcmd {
@@ -626,7 +625,7 @@ func main() {
 		case "mcp":
 			// Configure logging for server mode
 			log.SetFlags(log.LstdFlags)
-			
+
 			// Parse MCP subcommand arguments
 			if err := parseMCPArgs(os.Args); err != nil {
 				log.Printf("MCP error: %v", err)

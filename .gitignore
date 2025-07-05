@@ -9,4 +9,6 @@ run_*
 .gemini/**
 .repomix/**
 .vscode/**
+rules/**
 
+sgconfig.yml

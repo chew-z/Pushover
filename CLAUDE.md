@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+@/Users/rrj/Projekty/CodeAssist/Prompts/GOLANG.md
+
 ## Project Overview
 
 This is a well-architected Go command-line utility for sending push notifications via the Pushover service. The application demonstrates excellent software engineering practices with a focus on testability, maintainability, and robust error handling through a single-package design with clear functional separation.

@@ -478,3 +478,68 @@ PUSHOVER_AUTH_SECRET_KEY="test_secret" \
 3. **Extensible**: Easy to add new tools following existing patterns
 4. **Production Ready**: Health checks, CORS, graceful shutdown
 5. **Well-Documented**: Comprehensive configuration and usage examples
+
+## Claude Code Usage Guidelines
+
+### Documentation Reference Patterns
+
+When working with this codebase, Claude should follow these documentation usage patterns:
+
+#### **Code References**
+- Always include `file_path:line_number` when referencing specific functions or code sections
+- Example: "The `CreateMessage()` function in main.go:245 handles message construction"
+- Use exact function names and locations from the codebase
+
+#### **Context Utilization**
+- Reference this CLAUDE.md document for:
+  - Architecture decisions and design patterns
+  - Available commands and build processes
+  - Environment configuration requirements
+  - Testing strategies and patterns
+  - MCP server capabilities and usage
+
+#### **Task Planning**
+- For complex changes, always reference the "Architecture Insights for Development" section
+- Follow the established patterns for adding features, modifying configuration, or debugging
+- Maintain consistency with the single-package architecture and interface-based design
+
+#### **Command Execution Priority**
+1. **First**: Use project-specific scripts (`./run_test.sh`, `./run_lint.sh`, `./run_format.sh`)
+2. **Second**: Use Makefile targets (`make test`, `make lint`, `make build`)
+3. **Third**: Use direct Go commands (`go test`, `go build`)
+
+#### **Configuration Management**
+- Always check environment variables section before suggesting new configuration
+- Reference the MCP configuration section for server-related tasks
+- Maintain backwards compatibility as outlined in the development guidelines
+
+#### **Error Handling**
+- Follow the established error propagation patterns (no `log.Fatal`)
+- Reference the "Testing Strategy & Patterns" section for error condition testing
+- Use the mock client patterns for testing error scenarios
+
+### Efficient Documentation Usage
+
+#### **Before Making Changes**
+1. Review relevant sections of this documentation
+2. Check existing patterns in the codebase
+3. Verify environment variable requirements
+4. Confirm testing approach
+
+#### **During Development**
+- Reference component descriptions for understanding existing functionality
+- Use the dependency information for import decisions
+- Follow the established coding conventions from the GOLANG.md guidelines
+
+#### **After Implementation**
+- Verify changes align with architecture principles
+- Run appropriate commands based on the "Development Commands" section
+- Confirm testing follows the established patterns
+
+### Documentation Maintenance
+
+When suggesting improvements to this documentation:
+- Maintain the existing structure and formatting
+- Add specific examples for new features
+- Update command references when build processes change
+- Keep the architecture insights current with code changes

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/gregdel/pushover"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // MockPushoverClient implements PushoverClient for testing
@@ -366,7 +366,7 @@ func TestHandleSendNotification(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := mcp.CallToolRequest{Arguments: tc.args}
+			req := mcp.CallToolRequest{Input: tc.args}
 			result, err := handleSendNotification(context.Background(), req, tc.config)
 
 			if err != nil {
@@ -378,7 +378,7 @@ func TestHandleSendNotification(t *testing.T) {
 
 			if tc.wantErr {
 				if result.Error == nil {
-					t.Fatalf("Expected a tool result error, but got none. Result text: %s", result.Text)
+					t.Fatalf("Expected a tool result error, but got none. Result text: %s", result.Content)
 				}
 				if !strings.Contains(result.Error.Message, tc.errContains) {
 					t.Errorf("Expected error to contain '%s', but got: %s", tc.errContains, result.Error.Message)

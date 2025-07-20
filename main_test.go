@@ -1,10 +1,20 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gregdel/pushover"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // MockPushoverClient implements PushoverClient for testing
@@ -169,5 +179,335 @@ func TestNewPushoverClient_MissingKeys(t *testing.T) {
 	_, _, err = NewPushoverClient(config)
 	if err == nil {
 		t.Error("Expected error for missing RECIPIENT_KEY")
+	}
+}
+
+// --- New Tests for MCP Server Functionality ---
+
+// newTestMCPConfig provides a valid MCPConfig for testing purposes.
+func newTestMCPConfig() *MCPConfig {
+	return &MCPConfig{
+		PushoverAppKey:          "test_app_key",
+		PushoverRecipientKey:    "test_recipient_key",
+		PushoverDefaultPriority: int(pushover.PriorityNormal),
+		PushoverDefaultExpire:   180,
+		HTTPAddress:             ":8080",
+		HTTPPath:                "/mcp",
+		AuthEnabled:             true,
+		AuthSecretKey:           "a-very-secret-key-for-testing-purpose",
+	}
+}
+
+func TestMCPConfig_Validation(t *testing.T) {
+	testCases := []struct {
+		name        string
+		modifier    func(c *MCPConfig)
+		expectError bool
+		errContains string
+	}{
+		{"valid config", func(c *MCPConfig) {}, false, ""},
+		{"missing app key", func(c *MCPConfig) { c.PushoverAppKey = "" }, true, "APP_KEY environment variable is required"},
+		{"missing recipient key", func(c *MCPConfig) { c.PushoverRecipientKey = "" }, true, "RECIPIENT_KEY environment variable is required"},
+		{"priority too low", func(c *MCPConfig) { c.PushoverDefaultPriority = -3 }, true, "PUSHOVER_PRIORITY must be between -2 and 2"},
+		{"priority too high", func(c *MCPConfig) { c.PushoverDefaultPriority = 3 }, true, "PUSHOVER_PRIORITY must be between -2 and 2"},
+		{"auth enabled but no secret", func(c *MCPConfig) { c.AuthSecretKey = "" }, true, "PUSHOVER_AUTH_SECRET_KEY is required"},
+		{"emergency priority requires expire", func(c *MCPConfig) {
+			c.PushoverDefaultPriority = int(pushover.PriorityEmergency)
+			c.PushoverDefaultExpire = 0
+		}, true, "PUSHOVER_EXPIRE must be > 0"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := newTestMCPConfig()
+			tc.modifier(config)
+			err := config.Validate()
+			if tc.expectError {
+				if err == nil {
+					t.Fatalf("Expected an error, but got none")
+				}
+				if !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("Expected error to contain '%s', but got: %v", tc.errContains, err)
+				}
+			} else if err != nil {
+				t.Fatalf("Expected no error, but got: %v", err)
+			}
+		})
+	}
+}
+
+func TestAuthMiddleware_GenerateAndValidateJWT(t *testing.T) {
+	secretKey := "test-secret"
+	am := NewAuthMiddleware(secretKey, true)
+
+	userID, username, role := "user123", "testuser", "user"
+	token, err := am.GenerateJWT(userID, username, role, 1)
+	if err != nil {
+		t.Fatalf("Failed to generate JWT: %v", err)
+	}
+
+	claims, err := am.validateJWT(token)
+	if err != nil {
+		t.Fatalf("Failed to validate JWT: %v", err)
+	}
+
+	if claims.UserID != userID {
+		t.Errorf("Expected UserID %s, got %s", userID, claims.UserID)
+	}
+	if claims.Username != username {
+		t.Errorf("Expected Username %s, got %s", username, claims.Username)
+	}
+	if claims.Role != role {
+		t.Errorf("Expected Role %s, got %s", role, claims.Role)
+	}
+	if claims.ExpiresAt <= time.Now().Unix() {
+		t.Error("Token expiration is not in the future")
+	}
+}
+
+func TestAuthMiddleware_ValidateJWT_Errors(t *testing.T) {
+	am := NewAuthMiddleware("secret1", true)
+	token, _ := am.GenerateJWT("user", "test", "user", 1)
+
+	amExpired := NewAuthMiddleware("secret-for-expired", true)
+	expiredToken, _ := amExpired.GenerateJWT("user", "test", "user", -1) // Expired 1 hour ago
+
+	testCases := []struct {
+		name        string
+		token       string
+		middleware  *AuthMiddleware
+		errContains string
+	}{
+		{"invalid signature", token, NewAuthMiddleware("secret2", true), "invalid signature"},
+		{"expired token", expiredToken, amExpired, ""}, // validateJWT doesn't check expiration itself
+		{"invalid format", "a.b", am, "invalid token format"},
+		{"malformed payload", "a.badpayload.c", am, "failed to decode payload"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			claims, err := tc.middleware.validateJWT(tc.token)
+			if err == nil {
+				// Specific case for expired token, which is valid structurally
+				if tc.name == "expired token" {
+					if time.Now().Unix() < claims.ExpiresAt {
+						t.Error("Expected token to be expired, but it is not")
+					}
+				} else {
+					t.Fatalf("Expected error, but got none")
+				}
+			} else if !strings.Contains(err.Error(), tc.errContains) {
+				t.Errorf("Expected error to contain '%s', got '%v'", tc.errContains, err)
+			}
+		})
+	}
+}
+
+func TestHandleSendNotification(t *testing.T) {
+	config := newTestMCPConfig()
+
+	testCases := []struct {
+		name        string
+		args        map[string]interface{}
+		config      *MCPConfig
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "successful send attempt",
+			args: map[string]interface{}{
+				"message": "test message",
+				"title":   "test title",
+			},
+			config:      config,
+			wantErr:     true, // Expects error because pushover client will fail with dummy keys
+			errContains: "Failed to send notification",
+		},
+		{
+			name:        "missing message",
+			args:        map[string]interface{}{"title": "test"},
+			config:      config,
+			wantErr:     true,
+			errContains: "Message parameter is required",
+		},
+		{
+			name:        "message too long",
+			args:        map[string]interface{}{"message": strings.Repeat("a", 1025)},
+			config:      config,
+			wantErr:     true,
+			errContains: "Message too long",
+		},
+		{
+			name:        "invalid priority string",
+			args:        map[string]interface{}{"message": "test", "priority": "high"},
+			config:      config,
+			wantErr:     true,
+			errContains: "Invalid priority value",
+		},
+		{
+			name:        "priority out of range",
+			args:        map[string]interface{}{"message": "test", "priority": "5"},
+			config:      config,
+			wantErr:     true,
+			errContains: "Priority must be between -2 and 2",
+		},
+		{
+			name: "emergency priority with expire",
+			args: map[string]interface{}{
+				"message":  "emergency",
+				"priority": strconv.Itoa(int(pushover.PriorityEmergency)),
+				"expire":   "60",
+			},
+			config:      config,
+			wantErr:     true, // Still fails on send
+			errContains: "Failed to send notification",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{Arguments: tc.args}
+			result, err := handleSendNotification(context.Background(), req, tc.config)
+
+			if err != nil {
+				t.Fatalf("Handler returned an unexpected error: %v", err)
+			}
+			if result == nil {
+				t.Fatal("Result is nil")
+			}
+
+			if tc.wantErr {
+				if result.Error == nil {
+					t.Fatalf("Expected a tool result error, but got none. Result text: %s", result.Text)
+				}
+				if !strings.Contains(result.Error.Message, tc.errContains) {
+					t.Errorf("Expected error to contain '%s', but got: %s", tc.errContains, result.Error.Message)
+				}
+			} else {
+				if result.Error != nil {
+					t.Fatalf("Expected no tool result error, but got: %s", result.Error.Message)
+				}
+			}
+		})
+	}
+}
+
+func TestHttpServerEndpoints(t *testing.T) {
+	config := newTestMCPConfig()
+	hsm := NewHTTPServerManager(config)
+
+	// We don't start the server, just test handlers directly
+	// Create an MCP server instance to handle capability requests
+	mcpServer := setupMCPServer(config)
+	hsm.mcpServer = server.NewStreamableHTTPServer(mcpServer)
+
+	t.Run("Health Endpoint", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		rr := httptest.NewRecorder()
+		hsm.handleHealth(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		}
+
+		var resp map[string]interface{}
+		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+			t.Fatalf("Could not decode response: %v", err)
+		}
+
+		if resp["status"] != "healthy" {
+			t.Errorf("Expected status 'healthy', got '%s'", resp["status"])
+		}
+	})
+
+	t.Run("Capabilities Endpoint", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/capabilities", nil)
+		rr := httptest.NewRecorder()
+		hsm.handleCapabilities(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		}
+
+		var resp map[string]interface{}
+		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+			t.Fatalf("Could not decode response: %v", err)
+		}
+
+		if resp["name"] != "pushover-mcp-server" {
+			t.Errorf("Expected name 'pushover-mcp-server', got '%s'", resp["name"])
+		}
+		if !resp["authentication"].(map[string]interface{})["enabled"].(bool) {
+			t.Error("Expected authentication to be enabled in capabilities")
+		}
+	})
+
+	t.Run("Generate Token Endpoint", func(t *testing.T) {
+		body := `{"user_id": "test_user", "username": "tester", "role": "admin", "expires_in": 1}`
+		req := httptest.NewRequest(http.MethodPost, "/generate-token", strings.NewReader(body))
+		rr := httptest.NewRecorder()
+
+		hsm.handleGenerateToken(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		}
+
+		var resp map[string]interface{}
+		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+			t.Fatalf("Could not decode response: %v", err)
+		}
+
+		if token, ok := resp["token"].(string); !ok || token == "" {
+			t.Error("Expected a non-empty token in response")
+		}
+
+		if resp["username"] != "tester" {
+			t.Errorf("Expected username 'tester', got '%s'", resp["username"])
+		}
+	})
+
+	t.Run("Generate Token Endpoint - Bad Method", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/generate-token", nil)
+		rr := httptest.NewRecorder()
+		hsm.handleGenerateToken(rr, req)
+
+		if status := rr.Code; status != http.StatusMethodNotAllowed {
+			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusMethodNotAllowed)
+		}
+	})
+}
+
+func TestNewMCPConfigFromEnv(t *testing.T) {
+	t.Setenv("PUSHOVER_HTTP_ADDRESS", ":9090")
+	t.Setenv("PUSHOVER_AUTH_ENABLED", "true")
+	t.Setenv("PUSHOVER_AUTH_SECRET_KEY", "env-secret")
+	t.Setenv("APP_KEY", "env-app-key")
+	t.Setenv("RECIPIENT_KEY", "env-recipient-key")
+
+	// Test that flag=false but env=true results in true
+	config, err := NewMCPConfig(false)
+	if err != nil {
+		t.Fatalf("NewMCPConfig failed: %v", err)
+	}
+
+	if config.HTTPAddress != ":9090" {
+		t.Errorf("Expected HTTPAddress :9090, got %s", config.HTTPAddress)
+	}
+	if !config.AuthEnabled {
+		t.Error("Expected AuthEnabled to be true from environment")
+	}
+	if config.AuthSecretKey != "env-secret" {
+		t.Errorf("Expected AuthSecretKey from env, but it was not set")
+	}
+
+	// Test that flag=true overrides env=false (or unset)
+	os.Unsetenv("PUSHOVER_AUTH_ENABLED")
+	config, err = NewMCPConfig(true)
+	if err != nil {
+		t.Fatalf("NewMCPConfig failed: %v", err)
+	}
+	if !config.AuthEnabled {
+		t.Error("Expected AuthEnabled to be true from flag")
 	}
 }

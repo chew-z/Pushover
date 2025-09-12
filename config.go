@@ -48,7 +48,7 @@ type MCPConfig struct {
 
 // Default configuration values
 const (
-	defaultHTTPAddress     = ":8080"
+	defaultHTTPAddress     = "127.0.0.1:8080"
 	defaultHTTPPath        = "/mcp"
 	defaultHTTPStateless   = false
 	defaultHTTPHeartbeat   = 30 * time.Second
@@ -98,7 +98,7 @@ func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
 		HTTPHeartbeat:   parseEnvDuration("PUSHOVER_HTTP_HEARTBEAT", defaultHTTPHeartbeat),
 		HTTPTimeout:     parseEnvDuration("PUSHOVER_HTTP_TIMEOUT", defaultHTTPTimeout),
 		HTTPCORSEnabled: parseEnvBool("PUSHOVER_HTTP_CORS_ENABLED", defaultHTTPCORSEnabled),
-		HTTPCORSOrigins: parseEnvStringSlice("PUSHOVER_HTTP_CORS_ORIGINS", []string{"*"}),
+		HTTPCORSOrigins: parseEnvStringSlice("PUSHOVER_HTTP_CORS_ORIGINS", []string{}),
 
 		// Authentication settings - prioritize command-line flags over environment
 		AuthEnabled:   authEnabledFlag || parseEnvBool("PUSHOVER_AUTH_ENABLED", defaultAuthEnabled),

@@ -65,11 +65,6 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 	// Add capabilities endpoint
 	mux.HandleFunc("/capabilities", hsm.handleCapabilities)
 
-	// Add token generation endpoint (if auth is enabled)
-	if hsm.config.AuthEnabled {
-		mux.HandleFunc("/generate-token", hsm.handleGenerateToken)
-	}
-
 	// Wrap with CORS middleware if enabled
 	var handler http.Handler = mux
 	if hsm.config.HTTPCORSEnabled {

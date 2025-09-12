@@ -2,14 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // AuthMiddleware handles JWT-based authentication for HTTP requests
@@ -20,11 +18,10 @@ type AuthMiddleware struct {
 
 // Claims represents the JWT claims structure
 type Claims struct {
-	UserID    string `json:"user_id"`
-	Username  string `json:"username"`
-	Role      string `json:"role"`
-	IssuedAt  int64  `json:"iat"`
-	ExpiresAt int64  `json:"exp"`
+	jwt.RegisteredClaims
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
 }
 
 // contextKey is a custom type for context keys to avoid collisions
@@ -76,13 +73,6 @@ func (am *AuthMiddleware) HTTPContextFunc() func(context.Context, *http.Request)
 			return ctx
 		}
 
-		// Check token expiration
-		if time.Now().Unix() > claims.ExpiresAt {
-			ctx = context.WithValue(ctx, contextKeyAuthError, "token expired")
-			ctx = context.WithValue(ctx, contextKeyAuthenticated, false)
-			return ctx
-		}
-
 		// Add user information to context
 		ctx = context.WithValue(ctx, contextKeyUserID, claims.UserID)
 		ctx = context.WithValue(ctx, contextKeyUsername, claims.Username)
@@ -110,81 +100,47 @@ func extractTokenFromHeader(r *http.Request) string {
 }
 
 // validateJWT validates a JWT token and returns the claims
-func (am *AuthMiddleware) validateJWT(token string) (*Claims, error) {
-	// Split token into parts
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid token format")
-	}
+func (am *AuthMiddleware) validateJWT(tokenString string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return am.secretKey, nil
+	},
+		jwt.WithIssuer("pushover-mcp"),
+		jwt.WithAudience("pushover-mcp-user"),
+		jwt.WithLeeway(60*time.Second),
+	)
 
-	header, payload, signature := parts[0], parts[1], parts[2]
-
-	// Validate signature
-	expectedSignature := am.createSignature(header + "." + payload)
-	if !hmac.Equal([]byte(signature), []byte(expectedSignature)) {
-		return nil, fmt.Errorf("invalid signature")
-	}
-
-	// Decode and parse payload
-	payloadBytes, err := base64.RawURLEncoding.DecodeString(payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode payload: %w", err)
+		return nil, err
 	}
 
-	var claims Claims
-	if err := json.Unmarshal(payloadBytes, &claims); err != nil {
-		return nil, fmt.Errorf("failed to parse claims: %w", err)
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		return claims, nil
 	}
 
-	return &claims, nil
-}
-
-// createSignature creates an HMAC signature for the given data
-func (am *AuthMiddleware) createSignature(data string) string {
-	h := hmac.New(sha256.New, am.secretKey)
-	h.Write([]byte(data))
-	return base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+	return nil, fmt.Errorf("invalid token")
 }
 
 // GenerateJWT generates a JWT token for the given user information
 func (am *AuthMiddleware) GenerateJWT(userID, username, role string, expirationHours int) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID:    userID,
-		Username:  username,
-		Role:      role,
-		IssuedAt:  now.Unix(),
-		ExpiresAt: now.Add(time.Duration(expirationHours) * time.Hour).Unix(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "pushover-mcp",
+			Audience:  jwt.ClaimStrings{"pushover-mcp-user"},
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(expirationHours) * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+		},
+		UserID:   userID,
+		Username: username,
+		Role:     role,
 	}
 
-	// Create header
-	header := map[string]interface{}{
-		"alg": "HS256",
-		"typ": "JWT",
-	}
-
-	headerBytes, err := json.Marshal(header)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal header: %w", err)
-	}
-
-	// Create payload
-	payloadBytes, err := json.Marshal(claims)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal claims: %w", err)
-	}
-
-	// Encode header and payload
-	encodedHeader := base64.RawURLEncoding.EncodeToString(headerBytes)
-	encodedPayload := base64.RawURLEncoding.EncodeToString(payloadBytes)
-
-	// Create signature
-	signature := am.createSignature(encodedHeader + "." + encodedPayload)
-
-	// Combine all parts
-	token := encodedHeader + "." + encodedPayload + "." + signature
-
-	return token, nil
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(am.secretKey)
 }
 
 // Helper functions for extracting authentication information from context
@@ -273,14 +229,14 @@ func (am *AuthMiddleware) TokenInfo(token string) {
 	fmt.Printf("User ID: %s\n", claims.UserID)
 	fmt.Printf("Username: %s\n", claims.Username)
 	fmt.Printf("Role: %s\n", claims.Role)
-	fmt.Printf("Issued At: %s\n", time.Unix(claims.IssuedAt, 0).Format(time.RFC3339))
-	fmt.Printf("Expires At: %s\n", time.Unix(claims.ExpiresAt, 0).Format(time.RFC3339))
+	fmt.Printf("Issued At: %s\n", claims.IssuedAt.Time.Format(time.RFC3339))
+	fmt.Printf("Expires At: %s\n", claims.ExpiresAt.Time.Format(time.RFC3339))
 
-	if time.Now().Unix() > claims.ExpiresAt {
+	if time.Now().After(claims.ExpiresAt.Time) {
 		fmt.Printf("Status: EXPIRED\n")
 	} else {
 		fmt.Printf("Status: VALID\n")
-		remaining := time.Until(time.Unix(claims.ExpiresAt, 0))
+		remaining := time.Until(claims.ExpiresAt.Time)
 		fmt.Printf("Time Remaining: %s\n", remaining.String())
 	}
 }

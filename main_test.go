@@ -261,7 +261,7 @@ func TestAuthMiddleware_GenerateAndValidateJWT(t *testing.T) {
 	if claims.Role != role {
 		t.Errorf("Expected Role %s, got %s", role, claims.Role)
 	}
-	if claims.ExpiresAt <= time.Now().Unix() {
+	if claims.ExpiresAt.Time.Unix() <= time.Now().Unix() {
 		t.Error("Token expiration is not in the future")
 	}
 }
@@ -279,24 +279,17 @@ func TestAuthMiddleware_ValidateJWT_Errors(t *testing.T) {
 		middleware  *AuthMiddleware
 		errContains string
 	}{
-		{"invalid signature", token, NewAuthMiddleware("secret2", true), "invalid signature"},
-		{"expired token", expiredToken, amExpired, ""}, // validateJWT doesn't check expiration itself
-		{"invalid format", "a.b", am, "invalid token format"},
-		{"malformed payload", "a.badpayload.c", am, "invalid signature"}, // This actually fails on signature validation first
+		{"invalid signature", token, NewAuthMiddleware("secret2", true), "signature is invalid"},
+		{"expired token", expiredToken, amExpired, "token is expired"}, // validateJWT doesn't check expiration itself
+		{"invalid format", "a.b.c", am, "token is malformed"},
+		{"malformed payload", "a.badpayload.c", am, "token is malformed"}, // This actually fails on signature validation first
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			claims, err := tc.middleware.validateJWT(tc.token)
+			_, err := tc.middleware.validateJWT(tc.token)
 			if err == nil {
-				// Specific case for expired token, which is valid structurally
-				if tc.name == "expired token" {
-					if time.Now().Unix() < claims.ExpiresAt {
-						t.Error("Expected token to be expired, but it is not")
-					}
-				} else {
-					t.Fatalf("Expected error, but got none")
-				}
+				t.Fatalf("Expected error, but got none")
 			} else if !strings.Contains(err.Error(), tc.errContains) {
 				t.Errorf("Expected error to contain '%s', got '%v'", tc.errContains, err)
 			}

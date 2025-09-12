@@ -11,6 +11,7 @@ This is a well-architected Go command-line utility for sending push notification
 ## Architecture & Design Patterns
 
 ### Core Design Principles
+
 - **Modular File Architecture**: Functionality split across focused files while maintaining single package design
 - **Interface-Based Design**: `PushoverClient` interface enables comprehensive mocking and testing
 - **Dependency Injection**: `Run()` function accepts client interface for flexible testing scenarios
@@ -19,6 +20,7 @@ This is a well-architected Go command-line utility for sending push notification
 - **Separation of Concerns**: Each file has a single responsibility for specific functionality
 
 ### Key Design Strengths
+
 1. **Testability**: Interface abstraction enables comprehensive unit and integration testing
 2. **Maintainability**: Clear separation of concerns across focused files (45-194 lines each vs 600+ line monolith)
 3. **Flexibility**: Multiple configuration methods (environment, CLI args, positional)
@@ -29,21 +31,25 @@ This is a well-architected Go command-line utility for sending push notification
 ## Key Components & Functions
 
 ### Configuration System
+
 - **`Config` struct**: Holds complete application configuration from environment variables
 - **`LoadConfig()`**: Loads and validates configuration with sensible defaults
 - **Environment Variables**: `APP_KEY`, `RECIPIENT_KEY`, `DEVICE_NAME`, `DEFAULT_TITLE`, `PUSHOVER_PRIORITY`, `PUSHOVER_SOUND`, `PUSHOVER_EXPIRE`
 
 ### Command-Line Interface
+
 - **`CLIArgs` struct**: Comprehensive CLI argument structure
 - **`ParseArgs()`**: Supports both flag-based and positional arguments with backwards compatibility
 - **Features**: Help/version commands, priority levels (-2 to 2), 23 sound options, device targeting
 
 ### Client Abstraction
+
 - **`PushoverClient` interface**: Abstracts Pushover API for testability
 - **`RealPushoverApp`**: Production implementation wrapping official Pushover client
 - **`MockPushoverClient`**: Test implementation with controllable behavior and call verification
 
 ### Core Application Logic
+
 - **`CreateMessage()`**: Constructs Pushover messages with full API feature support
 - **`SendNotification()`**: Handles API communication with proper error handling
 - **`NewPushoverClient()`**: Factory function for client creation with validation
@@ -52,6 +58,7 @@ This is a well-architected Go command-line utility for sending push notification
 ## Development Commands
 
 ### Build System (Makefile)
+
 ```bash
 make build              # Build binary with version injection
 make clean              # Clean build artifacts
@@ -62,12 +69,14 @@ make install            # Install binary system-wide
 ```
 
 ### Manual Build
+
 ```bash
 go build -o bin/push .                    # Build to bin/push
 go build -o bin/pushover .                # Build to bin/pushover
 ```
 
 ### Testing Commands
+
 ```bash
 ./run_test.sh                             # Run all tests with verbose output
 go test -v ./...                          # Direct test command
@@ -77,12 +86,14 @@ go test -v -run TestRun                   # Example: test main orchestration
 ```
 
 ### Code Quality
+
 ```bash
 ./run_format.sh                           # Format code with gofmt
 ./run_lint.sh                             # Run golangci-lint with fixes
 ```
 
 ### Development Usage Examples
+
 ```bash
 # Basic usage
 ./bin/push "Hello World"
@@ -97,10 +108,12 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 ## Environment Configuration
 
 ### Required Variables
+
 - **`APP_KEY`**: Pushover application key (required)
 - **`RECIPIENT_KEY`**: Pushover recipient key (required)
 
 ### Optional Variables (with defaults)
+
 - **`DEVICE_NAME`**: Target device name
 - **`DEFAULT_TITLE`**: Default message title
 - **`PUSHOVER_PRIORITY`**: Default priority (-2 to 2, default: 0)
@@ -108,6 +121,7 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 - **`PUSHOVER_EXPIRE`**: Default expiration for emergency messages (default: 180 seconds)
 
 ### Configuration Loading
+
 - Automatic `.env` file loading via `godotenv/autoload` import
 - CLI arguments override environment variables
 - Sensible defaults for optional parameters
@@ -115,21 +129,23 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 ## Dependencies & External APIs
 
 ### Core Dependencies
+
 - **`github.com/gregdel/pushover v1.3.1`**: Official Pushover Go client
-  - Complete Pushover API coverage
-  - Priority constants, sound definitions, error types
-  - Supports attachments, emergency notifications, glances
+    - Complete Pushover API coverage
+    - Priority constants, sound definitions, error types
+    - Supports attachments, emergency notifications, glances
 
 - **`github.com/joho/godotenv v1.5.1`**: Environment variable loading
-  - Automatic `.env` file loading via `autoload` import
-  - Development-friendly environment management
+    - Automatic `.env` file loading via `autoload` import
+    - Development-friendly environment management
 
 - **`github.com/stretchr/testify v1.9.0`**: Testing framework
-  - Mock generation and verification
-  - Rich assertion library
-  - Test suite organization
+    - Mock generation and verification
+    - Rich assertion library
+    - Test suite organization
 
 ### Pushover API Features Supported
+
 - **Priority Levels**: -2 (silent) to 2 (emergency with retry)
 - **Sound Options**: 23 different notification sounds
 - **Device Targeting**: Send to specific registered devices
@@ -139,12 +155,14 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 ## Testing Strategy & Patterns
 
 ### Testing Architecture
+
 - **Mock-Based Testing**: `MockPushoverClient` with controllable behavior
 - **Dependency Injection**: `Run()` function accepts client interface for testing
 - **Table-Driven Tests**: Systematic testing with comprehensive input combinations
 - **Integration Testing**: End-to-end testing through main application flow
 
 ### Test Coverage Areas
+
 1. **Configuration Loading**: Environment variables, defaults, validation
 2. **CLI Argument Parsing**: Flags, positional args, help/version commands
 3. **Client Creation**: API key validation, error handling
@@ -153,6 +171,7 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 6. **Integration Flow**: Complete application execution with various configurations
 
 ### Testing Best Practices
+
 - Environment variable cleanup after tests
 - Mock verification for API calls
 - Error condition simulation
@@ -162,6 +181,7 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 ## File Structure & Key Locations
 
 ### Core Files (Post-Refactoring)
+
 - **`main.go`**: Simplified entry point and subcommand routing (45 lines)
 - **`pushover.go`**: Pushover client interface and implementation (93 lines)
 - **`cli.go`**: CLI argument parsing and main app logic (165 lines)
@@ -175,12 +195,14 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 - **`CLAUDE.md`**: This development guide
 
 ### Build & Development
+
 - **`Makefile`**: Complete build system with all development targets
 - **`run_test.sh`**: Test execution script with verbose output
 - **`run_format.sh`**: Code formatting automation
 - **`run_lint.sh`**: Linting with automatic fixes
 
 ### Binary Output
+
 - **`bin/`**: Build output directory
 - **`bin/push`**: Primary binary name
 - **`bin/pushover`**: Alternative binary name
@@ -188,6 +210,7 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 ## Architecture Insights for Development
 
 ### When Adding Features
+
 1. **Choose Appropriate File**: Add functionality to the most relevant file (e.g., CLI features in `cli.go`, MCP features in `mcp_server.go`)
 2. **Maintain Interface Contract**: Ensure `PushoverClient` interface remains stable
 3. **Add Corresponding Tests**: Every new feature requires mock testing
@@ -196,6 +219,7 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 6. **Error Handling**: Follow existing error propagation patterns
 
 ### When Modifying Configuration
+
 1. **Update `config.go`**: All configuration changes should be centralized in the config file
 2. **Preserve Backwards Compatibility**: Maintain existing environment variable names
 3. **Add Validation**: Ensure new config options have proper validation
@@ -203,12 +227,14 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 5. **Test Override Behavior**: Verify CLI arguments properly override environment
 
 ### When Adding New Files
+
 1. **Follow Naming Convention**: Use descriptive names that indicate the file's purpose
 2. **Keep Files Focused**: Each file should have a single responsibility (e.g., `auth.go` for authentication, `http_server.go` for HTTP transport)
 3. **Maintain Package Structure**: All files remain in the `main` package
 4. **Update Documentation**: Add new files to the file structure section above
 
 ### When Debugging Issues
+
 1. **Check Environment Loading**: Verify `.env` file format and variable names
 2. **Validate API Keys**: Ensure APP_KEY and RECIPIENT_KEY are correct
 3. **Test with Mock**: Use mock client to isolate API vs. application issues
@@ -219,11 +245,13 @@ APP_KEY=xxx RECIPIENT_KEY=yyy ./bin/push "Test message"
 ## MCP Server Capabilities
 
 ### Overview
+
 The Pushover application now includes **Model Context Protocol (MCP) server capabilities**, allowing it to serve as an MCP server that AI systems can connect to for sending push notifications. This functionality follows the TimeMCP reference architecture with authentication, HTTP transport, and comprehensive configuration management.
 
 ### MCP Server Architecture
 
 #### **Core Components**
+
 - **`main.go`**: Enhanced with MCP server logic and tool definitions
 - **`config.go`**: MCP-specific configuration management with environment variables
 - **`auth.go`**: JWT-based authentication middleware for HTTP transport
@@ -232,18 +260,22 @@ The Pushover application now includes **Model Context Protocol (MCP) server capa
 #### **Transport Methods**
 
 **STDIO Transport** (Default):
+
 ```bash
 ./bin/pushover mcp
 ./bin/pushover mcp -transport stdio
 ```
+
 - Best for command-line integrations and AI systems
 - Uses standard input/output for JSON-RPC communication
 - Automatic signal handling for graceful shutdown
 
 **HTTP Transport**:
+
 ```bash
 ./bin/pushover mcp -transport http
 ```
+
 - RESTful API with optional JWT authentication
 - Health endpoints: `/health`, `/capabilities`, `/generate-token`
 - CORS support for web integrations
@@ -252,19 +284,21 @@ The Pushover application now includes **Model Context Protocol (MCP) server capa
 #### **Available Tools**
 
 **`send_notification`**: Send push notifications via Pushover
+
 - **Parameters**:
-  - `message` (required): Notification message text (max 1024 chars)
-  - `title` (optional): Notification title
-  - `priority` (optional): Priority level (-2 to 2)
-  - `device` (optional): Target device name
-  - `sound` (optional): Notification sound name
-  - `expire` (optional): Expiration time for emergency messages
+    - `message` (required): Notification message text (max 1024 chars)
+    - `title` (optional): Notification title
+    - `priority` (optional): Priority level (-2 to 2)
+    - `device` (optional): Target device name
+    - `sound` (optional): Notification sound name
+    - `expire` (optional): Expiration time for emergency messages
 
 ### MCP Configuration
 
 #### **Environment Variables**
 
 **HTTP Transport Settings**:
+
 ```bash
 PUSHOVER_HTTP_ADDRESS=":8080"          # Server bind address
 PUSHOVER_HTTP_PATH="/mcp"              # Endpoint path
@@ -276,12 +310,14 @@ PUSHOVER_HTTP_CORS_ORIGINS="*"         # Allowed origins (comma-separated)
 ```
 
 **Authentication Settings**:
+
 ```bash
 PUSHOVER_AUTH_ENABLED="false"          # Enable JWT authentication
 PUSHOVER_AUTH_SECRET_KEY="secret"      # JWT signing secret
 ```
 
 **Pushover API Settings** (same as CLI mode):
+
 ```bash
 APP_KEY="your_app_key"                 # Required
 RECIPIENT_KEY="your_recipient_key"     # Required
@@ -297,6 +333,7 @@ PUSHOVER_EXPIRE="180"                  # Default expiration
 #### **Command-Line Interface**
 
 **Main Help** (shows both CLI and MCP modes):
+
 ```bash
 ./bin/pushover -h
 Usage: ./bin/pushover [OPTIONS] | ./bin/pushover SUBCOMMAND [OPTIONS]
@@ -311,6 +348,7 @@ Options:
 ```
 
 **MCP Subcommand Help**:
+
 ```bash
 ./bin/pushover mcp -h
 Usage: ./bin/pushover mcp [OPTIONS]
@@ -337,17 +375,20 @@ Options:
 #### **Starting the Server**
 
 **STDIO Mode** (for AI systems):
+
 ```bash
 ./bin/pushover mcp
 ./bin/pushover mcp -transport stdio
 ```
 
 **HTTP Mode** (for web integrations):
+
 ```bash
 ./bin/pushover mcp -transport http
 ```
 
 **HTTP Mode with Authentication**:
+
 ```bash
 ./bin/pushover mcp -transport http -auth-enabled
 ```
@@ -355,6 +396,7 @@ Options:
 #### **Authentication (HTTP Mode)**
 
 **1. Generate Token via Command Line**:
+
 ```bash
 # Set secret key and generate token
 PUSHOVER_AUTH_SECRET_KEY="your-secret-key" \
@@ -370,11 +412,13 @@ PUSHOVER_AUTH_SECRET_KEY="your-secret-key" \
 ```
 
 **2. Use Token in HTTP Requests**:
+
 ```bash
 Authorization: Bearer <jwt_token>
 ```
 
 **3. Alternative: Generate Token via HTTP API**:
+
 ```bash
 curl -X POST http://localhost:8080/generate-token \
   -H "Content-Type: application/json" \
@@ -384,11 +428,13 @@ curl -X POST http://localhost:8080/generate-token \
 #### **Health and Capabilities**
 
 **Health Check**:
+
 ```bash
 curl http://localhost:8080/health
 ```
 
 **Capabilities Discovery**:
+
 ```bash
 curl http://localhost:8080/capabilities
 ```
@@ -399,16 +445,16 @@ curl http://localhost:8080/capabilities
 
 ```json
 {
-  "mcpServers": {
-    "pushover": {
-      "command": "/path/to/pushover",
-      "args": ["mcp", "-transport", "stdio"],
-      "env": {
-        "APP_KEY": "your_app_key",
-        "RECIPIENT_KEY": "your_recipient_key"
-      }
+    "mcpServers": {
+        "pushover": {
+            "command": "/path/to/pushover",
+            "args": ["mcp", "-transport", "stdio"],
+            "env": {
+                "APP_KEY": "your_app_key",
+                "RECIPIENT_KEY": "your_recipient_key"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -439,11 +485,13 @@ curl -X POST http://localhost:8080/mcp \
 #### **Testing MCP Functionality**
 
 **STDIO Mode Testing**:
+
 ```bash
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | ./bin/pushover mcp -transport stdio
 ```
 
 **HTTP Mode Testing**:
+
 ```bash
 # Start server in background
 ./bin/pushover mcp -transport http &
@@ -458,6 +506,7 @@ curl -X POST http://localhost:8080/mcp \
 ```
 
 **Token Generation Testing**:
+
 ```bash
 # Generate token and test authentication
 PUSHOVER_AUTH_SECRET_KEY="test_secret" ./bin/pushover mcp -generate-token
@@ -504,34 +553,40 @@ PUSHOVER_AUTH_SECRET_KEY="test_secret" \
 When working with this codebase, Claude should follow these documentation usage patterns:
 
 #### **Code References**
+
 - Always include `file_path:line_number` when referencing specific functions or code sections
 - Example: "The `CreateMessage()` function in main.go:245 handles message construction"
 - Use exact function names and locations from the codebase
 
 #### **Context Utilization**
+
 - Reference this CLAUDE.md document for:
-  - Architecture decisions and design patterns
-  - Available commands and build processes
-  - Environment configuration requirements
-  - Testing strategies and patterns
-  - MCP server capabilities and usage
+    - Architecture decisions and design patterns
+    - Available commands and build processes
+    - Environment configuration requirements
+    - Testing strategies and patterns
+    - MCP server capabilities and usage
 
 #### **Task Planning**
+
 - For complex changes, always reference the "Architecture Insights for Development" section
 - Follow the established patterns for adding features, modifying configuration, or debugging
 - Maintain consistency with the single-package architecture and interface-based design
 
 #### **Command Execution Priority**
+
 1. **First**: Use project-specific scripts (`./run_test.sh`, `./run_lint.sh`, `./run_format.sh`)
 2. **Second**: Use Makefile targets (`make test`, `make lint`, `make build`)
 3. **Third**: Use direct Go commands (`go test`, `go build`)
 
 #### **Configuration Management**
+
 - Always check environment variables section before suggesting new configuration
 - Reference the MCP configuration section for server-related tasks
 - Maintain backwards compatibility as outlined in the development guidelines
 
 #### **Error Handling**
+
 - Follow the established error propagation patterns (no `log.Fatal`)
 - Reference the "Testing Strategy & Patterns" section for error condition testing
 - Use the mock client patterns for testing error scenarios
@@ -539,17 +594,20 @@ When working with this codebase, Claude should follow these documentation usage 
 ### Efficient Documentation Usage
 
 #### **Before Making Changes**
+
 1. Review relevant sections of this documentation
 2. Check existing patterns in the codebase
 3. Verify environment variable requirements
 4. Confirm testing approach
 
 #### **During Development**
+
 - Reference component descriptions for understanding existing functionality
 - Use the dependency information for import decisions
 - Follow the established coding conventions from the GOLANG.md guidelines
 
 #### **After Implementation**
+
 - Verify changes align with architecture principles
 - Run appropriate commands based on the "Development Commands" section
 - Confirm testing follows the established patterns
@@ -557,7 +615,13 @@ When working with this codebase, Claude should follow these documentation usage 
 ### Documentation Maintenance
 
 When suggesting improvements to this documentation:
+
 - Maintain the existing structure and formatting
 - Add specific examples for new features
 - Update command references when build processes change
 - Keep the architecture insights current with code changes
+
+### Other instructions
+
+@./CODANNA.md
+@./GOLANG.md

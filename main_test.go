@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gregdel/pushover"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -277,12 +278,12 @@ func TestAuthMiddleware_ValidateJWT_Errors(t *testing.T) {
 		name        string
 		token       string
 		middleware  *AuthMiddleware
-		errContains string
+		errContains error
 	}{
-		{"invalid signature", token, NewAuthMiddleware("secret2", true), "signature is invalid"},
-		{"expired token", expiredToken, amExpired, "token is expired"}, // validateJWT doesn't check expiration itself
-		{"invalid format", "a.b.c", am, "token is malformed"},
-		{"malformed payload", "a.badpayload.c", am, "token is malformed"}, // This actually fails on signature validation first
+		{"invalid signature", token, NewAuthMiddleware("secret2", true), jwt.ErrSignatureInvalid},
+		{"expired token", expiredToken, amExpired, jwt.ErrTokenExpired},
+		{"invalid format", "a.b.c", am, jwt.ErrTokenMalformed},
+		{"malformed payload", "a.badpayload.c", am, jwt.ErrTokenMalformed},
 	}
 
 	for _, tc := range testCases {
@@ -290,8 +291,8 @@ func TestAuthMiddleware_ValidateJWT_Errors(t *testing.T) {
 			_, err := tc.middleware.validateJWT(tc.token)
 			if err == nil {
 				t.Fatalf("Expected error, but got none")
-			} else if !strings.Contains(err.Error(), tc.errContains) {
-				t.Errorf("Expected error to contain '%s', got '%v'", tc.errContains, err)
+			} else if !errors.Is(err, tc.errContains) {
+				t.Errorf("Expected error %v, got %v", tc.errContains, err)
 			}
 		})
 	}

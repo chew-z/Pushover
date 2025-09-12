@@ -90,19 +90,17 @@ func extractTokenFromHeader(r *http.Request) string {
 		return ""
 	}
 
-	// Check for Bearer token format
-	const bearerPrefix = "Bearer "
-	if !strings.HasPrefix(authHeader, bearerPrefix) {
+	parts := strings.Fields(authHeader)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 		return ""
 	}
-
-	return strings.TrimPrefix(authHeader, bearerPrefix)
+	return parts[1]
 }
 
 // validateJWT validates a JWT token and returns the claims
 func (am *AuthMiddleware) validateJWT(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		if token.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return am.secretKey, nil

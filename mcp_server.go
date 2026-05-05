@@ -46,6 +46,11 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 				mcp.Min(1),
 				mcp.Max(86400),
 			),
+			mcp.WithInteger("retry",
+				mcp.Description("Retry interval in seconds for emergency messages (30–86400)"),
+				mcp.Min(30),
+				mcp.Max(86400),
+			),
 		),
 		wrapWithAuth(handleSendNotification, "send_notification", config),
 	)
@@ -125,6 +130,7 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	device := request.GetString("device", "")
 	sound := request.GetString("sound", "")
 	expireTime := request.GetInt("expire", config.PushoverDefaultExpire)
+	retryTime := request.GetInt("retry", config.PushoverDefaultRetry)
 
 	// Create legacy config for compatibility
 	legacyConfig := config.ToLegacyConfig()
@@ -142,6 +148,7 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 		Priority:   priority,
 		Sound:      sound,
 		ExpireTime: expireTime,
+		RetryTime:  retryTime,
 		DeviceName: device,
 	}
 

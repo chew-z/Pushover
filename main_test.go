@@ -193,6 +193,7 @@ func newTestMCPConfig() *MCPConfig {
 		PushoverRecipientKey:    "test_recipient_key",
 		PushoverDefaultPriority: int(pushover.PriorityNormal),
 		PushoverDefaultExpire:   180,
+		PushoverDefaultRetry:    60,
 		HTTPAddress:             ":8080",
 		HTTPPath:                "/mcp",
 		AuthEnabled:             true,
@@ -217,6 +218,10 @@ func TestMCPConfig_Validation(t *testing.T) {
 			c.PushoverDefaultPriority = int(pushover.PriorityEmergency)
 			c.PushoverDefaultExpire = 0
 		}, true, "PUSHOVER_EXPIRE must be > 0"},
+		{"emergency priority requires retry", func(c *MCPConfig) {
+			c.PushoverDefaultPriority = int(pushover.PriorityEmergency)
+			c.PushoverDefaultRetry = 0
+		}, true, "PUSHOVER_RETRY must be >= 30"},
 	}
 
 	for _, tc := range testCases {

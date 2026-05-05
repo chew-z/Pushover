@@ -16,6 +16,7 @@ type CLIArgs struct {
 	Priority    int
 	Sound       string
 	ExpireTime  int
+	RetryTime   int
 	DeviceName  string
 	ShowVersion bool
 	ShowHelp    bool
@@ -83,6 +84,8 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 	fs.StringVar(&cliArgs.Sound, "sound", "", "Sound name")
 	fs.IntVar(&cliArgs.ExpireTime, "e", 0, "Expire time in seconds")
 	fs.IntVar(&cliArgs.ExpireTime, "expire", 0, "Expire time in seconds")
+	fs.IntVar(&cliArgs.RetryTime, "r", 0, "Retry interval in seconds for emergency messages (min 30)")
+	fs.IntVar(&cliArgs.RetryTime, "retry", 0, "Retry interval in seconds for emergency messages (min 30)")
 	fs.StringVar(&cliArgs.DeviceName, "d", "", "Device name")
 	fs.StringVar(&cliArgs.DeviceName, "device", "", "Device name")
 	fs.BoolVar(&cliArgs.ShowVersion, "version", false, "Show version")

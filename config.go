@@ -19,6 +19,7 @@ type Config struct {
 	Priority     int
 	Sound        string
 	ExpireTime   int
+	RetryTime    int
 }
 
 // MCPConfig holds the MCP server configuration
@@ -44,6 +45,7 @@ type MCPConfig struct {
 	PushoverDefaultPriority int
 	PushoverDefaultSound    string
 	PushoverDefaultExpire   int
+	PushoverDefaultRetry    int
 }
 
 // Default configuration values
@@ -56,6 +58,7 @@ const (
 	defaultHTTPCORSEnabled = true
 	defaultAuthEnabled     = false
 	defaultExpireTime      = 180
+	defaultRetryTime       = 60
 )
 
 // LoadConfig loads the configuration from environment variables
@@ -77,6 +80,12 @@ func LoadConfig() Config {
 		expireTime = e
 	}
 
+	// Parse retry time with error handling, default to 60 seconds
+	retryTime := defaultRetryTime
+	if r, err := strconv.Atoi(os.Getenv("PUSHOVER_RETRY")); err == nil && r >= 30 {
+		retryTime = r
+	}
+
 	return Config{
 		AppKey:       os.Getenv("APP_KEY"),
 		RecipientKey: os.Getenv("RECIPIENT_KEY"),
@@ -85,6 +94,7 @@ func LoadConfig() Config {
 		Priority:     priority,
 		Sound:        sound,
 		ExpireTime:   expireTime,
+		RetryTime:    retryTime,
 	}
 }
 
@@ -129,6 +139,12 @@ func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
 		config.PushoverDefaultExpire = e
 	}
 
+	// Parse retry time with error handling, default to 60 seconds
+	config.PushoverDefaultRetry = defaultRetryTime
+	if r, err := strconv.Atoi(os.Getenv("PUSHOVER_RETRY")); err == nil && r >= 30 {
+		config.PushoverDefaultRetry = r
+	}
+
 	// Validate configuration
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
@@ -153,9 +169,12 @@ func (c *MCPConfig) Validate() error {
 		return fmt.Errorf("PUSHOVER_PRIORITY must be between -2 and 2, got %d", c.PushoverDefaultPriority)
 	}
 
-	// Validate expire time for emergency priority
+	// Validate expire and retry for emergency priority
 	if c.PushoverDefaultPriority == int(pushover.PriorityEmergency) && c.PushoverDefaultExpire <= 0 {
 		return fmt.Errorf("PUSHOVER_EXPIRE must be > 0 for emergency priority messages")
+	}
+	if c.PushoverDefaultPriority == int(pushover.PriorityEmergency) && c.PushoverDefaultRetry < 30 {
+		return fmt.Errorf("PUSHOVER_RETRY must be >= 30 seconds for emergency priority messages")
 	}
 
 	// Validate auth secret key if auth is enabled
@@ -176,6 +195,7 @@ func (c *MCPConfig) ToLegacyConfig() Config {
 		Priority:     c.PushoverDefaultPriority,
 		Sound:        c.PushoverDefaultSound,
 		ExpireTime:   c.PushoverDefaultExpire,
+		RetryTime:    c.PushoverDefaultRetry,
 	}
 }
 

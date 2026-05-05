@@ -73,6 +73,13 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) *pushove
 	}
 	message.Expire = time.Duration(expireTime) * time.Second
 
+	// Set retry interval (CLI args override config; required for emergency priority)
+	retryTime := config.RetryTime
+	if cliArgs.RetryTime != 0 {
+		retryTime = cliArgs.RetryTime
+	}
+	message.Retry = time.Duration(retryTime) * time.Second
+
 	// Set device name (CLI args override config)
 	deviceName := config.DeviceName
 	if cliArgs.DeviceName != "" {

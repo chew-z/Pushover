@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gregdel/pushover"
+	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -262,7 +262,7 @@ func TestAuthMiddleware_GenerateAndValidateJWT(t *testing.T) {
 	if claims.Role != role {
 		t.Errorf("Expected Role %s, got %s", role, claims.Role)
 	}
-	if claims.ExpiresAt.Time.Unix() <= time.Now().Unix() {
+	if claims.ExpiresAt.Unix() <= time.Now().Unix() {
 		t.Error("Token expiration is not in the future")
 	}
 }
@@ -303,10 +303,10 @@ func TestHandleSendNotification(t *testing.T) {
 		name        string
 		message     string
 		title       string
-		priority    string
+		priority    any
 		device      string
 		sound       string
-		expire      string
+		expire      any
 		wantErr     bool
 		errContains string
 	}{
@@ -325,30 +325,10 @@ func TestHandleSendNotification(t *testing.T) {
 			errContains: "Message parameter is required",
 		},
 		{
-			name:        "message too long",
-			message:     strings.Repeat("a", 1025),
-			wantErr:     true,
-			errContains: "Message too long",
-		},
-		{
-			name:        "invalid priority string",
-			message:     "test",
-			priority:    "high",
-			wantErr:     true,
-			errContains: "Invalid priority value",
-		},
-		{
-			name:        "priority out of range",
-			message:     "test",
-			priority:    "5",
-			wantErr:     true,
-			errContains: "Priority must be between -2 and 2",
-		},
-		{
 			name:        "emergency priority with expire",
 			message:     "emergency",
-			priority:    strconv.Itoa(int(pushover.PriorityEmergency)),
-			expire:      "60",
+			priority:    int(pushover.PriorityEmergency),
+			expire:      60,
 			wantErr:     true, // Still fails on send
 			errContains: "Failed to send notification",
 		},
@@ -357,14 +337,14 @@ func TestHandleSendNotification(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Build arguments map
-			args := make(map[string]interface{})
+			args := make(map[string]any)
 			if tc.message != "" {
 				args["message"] = tc.message
 			}
 			if tc.title != "" {
 				args["title"] = tc.title
 			}
-			if tc.priority != "" {
+			if tc.priority != nil {
 				args["priority"] = tc.priority
 			}
 			if tc.device != "" {
@@ -373,7 +353,7 @@ func TestHandleSendNotification(t *testing.T) {
 			if tc.sound != "" {
 				args["sound"] = tc.sound
 			}
-			if tc.expire != "" {
+			if tc.expire != nil {
 				args["expire"] = tc.expire
 			}
 
@@ -393,13 +373,7 @@ func TestHandleSendNotification(t *testing.T) {
 				t.Fatal("Result is nil")
 			}
 
-			// Check if result indicates error (by checking the result text for error patterns)
-			resultText := ""
-			if result != nil {
-				// Since we can't access fields directly, we'll examine the result type
-				// Error results from mcp.NewToolResultError should be distinguishable
-				resultText = fmt.Sprintf("%v", result)
-			}
+			resultText := fmt.Sprintf("%v", result)
 
 			if tc.wantErr {
 				if !strings.Contains(resultText, tc.errContains) {
@@ -498,6 +472,68 @@ func TestHttpServerEndpoints(t *testing.T) {
 			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusMethodNotAllowed)
 		}
 	})
+}
+
+func TestMCPSchemaValidation(t *testing.T) {
+	config := newTestMCPConfig()
+	mcpServer := setupMCPServer(config)
+
+	c, err := client.NewInProcessClient(mcpServer)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	ctx := context.Background()
+	if err := c.Start(ctx); err != nil {
+		t.Fatalf("failed to start client: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+	if _, err := c.Initialize(ctx, mcp.InitializeRequest{
+		Params: mcp.InitializeParams{
+			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
+			ClientInfo:      mcp.Implementation{Name: "test-client", Version: "0.0.1"},
+		},
+	}); err != nil {
+		t.Fatalf("failed to initialize client: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		args map[string]any
+	}{
+		{
+			name: "priority as string rejected",
+			args: map[string]any{"message": "test", "priority": "5"},
+		},
+		{
+			name: "priority out of range",
+			args: map[string]any{"message": "test", "priority": 5},
+		},
+		{
+			name: "message too long",
+			args: map[string]any{"message": strings.Repeat("a", 1025)},
+		},
+		{
+			name: "expire out of range",
+			args: map[string]any{"message": "test", "expire": 99999},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := c.CallTool(ctx, mcp.CallToolRequest{
+				Params: mcp.CallToolParams{
+					Name:      "send_notification",
+					Arguments: tc.args,
+				},
+			})
+			if err != nil {
+				t.Fatalf("unexpected Go error: %v", err)
+			}
+			if !result.IsError {
+				t.Errorf("expected schema validation error (IsError=true), got success")
+			}
+		})
+	}
 }
 
 func TestNewMCPConfigFromEnv(t *testing.T) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -16,6 +15,7 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 	mcpServer := server.NewMCPServer(
 		"pushover-mcp-server",
 		version,
+		server.WithInputSchemaValidation(),
 	)
 
 	// Add the send_notification tool
@@ -25,12 +25,15 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 			mcp.WithString("message",
 				mcp.Description("The notification message to send (required)"),
 				mcp.Required(),
+				mcp.MaxLength(1024),
 			),
 			mcp.WithString("title",
 				mcp.Description("Optional title for the notification"),
 			),
-			mcp.WithString("priority",
+			mcp.WithInteger("priority",
 				mcp.Description("Priority level (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)"),
+				mcp.Min(-2),
+				mcp.Max(2),
 			),
 			mcp.WithString("device",
 				mcp.Description("Target device name"),
@@ -38,8 +41,10 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 			mcp.WithString("sound",
 				mcp.Description("Notification sound name"),
 			),
-			mcp.WithString("expire",
-				mcp.Description("Expiration time in seconds for emergency messages"),
+			mcp.WithInteger("expire",
+				mcp.Description("Expiration time in seconds for emergency messages (1–86400)"),
+				mcp.Min(1),
+				mcp.Max(86400),
 			),
 		),
 		wrapWithAuth(handleSendNotification, "send_notification", config),
@@ -114,40 +119,12 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 		return mcp.NewToolResultError("Message parameter is required"), nil
 	}
 
-	// Validate message length
-	if len(message) > 1024 {
-		return mcp.NewToolResultError("Message too long (max 1024 characters)"), nil
-	}
-
 	// Extract optional parameters
 	title := request.GetString("title", "")
-	priorityStr := request.GetString("priority", "")
+	priority := request.GetInt("priority", config.PushoverDefaultPriority)
 	device := request.GetString("device", "")
 	sound := request.GetString("sound", "")
-	expireStr := request.GetString("expire", "")
-
-	// Parse priority
-	priority := config.PushoverDefaultPriority
-	if priorityStr != "" {
-		if p, err := strconv.Atoi(priorityStr); err == nil {
-			if p < -2 || p > 2 {
-				return mcp.NewToolResultError("Priority must be between -2 and 2"), nil
-			}
-			priority = p
-		} else {
-			return mcp.NewToolResultError("Invalid priority value"), nil
-		}
-	}
-
-	// Parse expire time
-	expireTime := config.PushoverDefaultExpire
-	if expireStr != "" {
-		if e, err := strconv.Atoi(expireStr); err == nil {
-			expireTime = e
-		} else {
-			return mcp.NewToolResultError("Invalid expire value"), nil
-		}
-	}
+	expireTime := request.GetInt("expire", config.PushoverDefaultExpire)
 
 	// Create legacy config for compatibility
 	legacyConfig := config.ToLegacyConfig()

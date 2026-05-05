@@ -227,8 +227,8 @@ func (am *AuthMiddleware) TokenInfo(token string) {
 	fmt.Printf("User ID: %s\n", claims.UserID)
 	fmt.Printf("Username: %s\n", claims.Username)
 	fmt.Printf("Role: %s\n", claims.Role)
-	fmt.Printf("Issued At: %s\n", claims.IssuedAt.Time.Format(time.RFC3339))
-	fmt.Printf("Expires At: %s\n", claims.ExpiresAt.Time.Format(time.RFC3339))
+	fmt.Printf("Issued At: %s\n", claims.IssuedAt.Format(time.RFC3339))
+	fmt.Printf("Expires At: %s\n", claims.ExpiresAt.Format(time.RFC3339))
 
 	if time.Now().After(claims.ExpiresAt.Time) {
 		fmt.Printf("Status: EXPIRED\n")

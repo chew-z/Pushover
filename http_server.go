@@ -50,6 +50,11 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 		opts = append(opts, server.WithHTTPContextFunc(authMiddleware.HTTPContextFunc()))
 	}
 
+	// Disable DNS rebinding protection when behind a reverse proxy
+	if hsm.config.HTTPDisableLocalhostProtection {
+		opts = append(opts, server.WithDisableLocalhostProtection(true))
+	}
+
 	// Create the streamable HTTP server
 	hsm.mcpServer = server.NewStreamableHTTPServer(mcpServer, opts...)
 

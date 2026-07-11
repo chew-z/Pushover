@@ -25,13 +25,14 @@ type Config struct {
 // MCPConfig holds the MCP server configuration
 type MCPConfig struct {
 	// HTTP transport settings
-	HTTPAddress     string
-	HTTPPath        string
-	HTTPStateless   bool
-	HTTPHeartbeat   time.Duration
-	HTTPTimeout     time.Duration
-	HTTPCORSEnabled bool
-	HTTPCORSOrigins []string
+	HTTPAddress                 string
+	HTTPPath                    string
+	HTTPStateless               bool
+	HTTPHeartbeat               time.Duration
+	HTTPTimeout                 time.Duration
+	HTTPCORSEnabled             bool
+	HTTPCORSOrigins             []string
+	HTTPDisableLocalhostProtection bool
 
 	// Authentication settings
 	AuthEnabled   bool
@@ -49,16 +50,23 @@ type MCPConfig struct {
 }
 
 // Default configuration values
+//
+// Pushover is always deployed behind a reverse proxy (nginx) that forwards
+// the real Host header. mcp-go's DNS-rebinding protection only guards against
+// a browser hitting a loopback-bound server directly, which doesn't apply
+// here — so it must stay off by default or every proxied request 403s with
+// "invalid Host header".
 const (
-	defaultHTTPAddress     = "127.0.0.1:8080"
-	defaultHTTPPath        = "/mcp"
-	defaultHTTPStateless   = false
-	defaultHTTPHeartbeat   = 30 * time.Second
-	defaultHTTPTimeout     = 30 * time.Second
-	defaultHTTPCORSEnabled = true
-	defaultAuthEnabled     = false
-	defaultExpireTime      = 180
-	defaultRetryTime       = 60
+	defaultHTTPAddress                 = "127.0.0.1:8080"
+	defaultHTTPPath                    = "/mcp"
+	defaultHTTPStateless               = false
+	defaultHTTPHeartbeat               = 30 * time.Second
+	defaultHTTPTimeout                 = 30 * time.Second
+	defaultHTTPCORSEnabled             = true
+	defaultHTTPDisableLocalhostProtection = true
+	defaultAuthEnabled                 = false
+	defaultExpireTime                  = 180
+	defaultRetryTime                   = 60
 )
 
 // LoadConfig loads the configuration from environment variables
@@ -107,8 +115,9 @@ func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
 		HTTPStateless:   parseEnvBool("PUSHOVER_HTTP_STATELESS", defaultHTTPStateless),
 		HTTPHeartbeat:   parseEnvDuration("PUSHOVER_HTTP_HEARTBEAT", defaultHTTPHeartbeat),
 		HTTPTimeout:     parseEnvDuration("PUSHOVER_HTTP_TIMEOUT", defaultHTTPTimeout),
-		HTTPCORSEnabled: parseEnvBool("PUSHOVER_HTTP_CORS_ENABLED", defaultHTTPCORSEnabled),
-		HTTPCORSOrigins: parseEnvStringSlice("PUSHOVER_HTTP_CORS_ORIGINS", []string{}),
+		HTTPCORSEnabled:             parseEnvBool("PUSHOVER_HTTP_CORS_ENABLED", defaultHTTPCORSEnabled),
+		HTTPCORSOrigins:             parseEnvStringSlice("PUSHOVER_HTTP_CORS_ORIGINS", []string{}),
+		HTTPDisableLocalhostProtection: parseEnvBool("PUSHOVER_HTTP_DISABLE_LOCALHOST_PROTECTION", defaultHTTPDisableLocalhostProtection),
 
 		// Authentication settings - prioritize command-line flags over environment
 		AuthEnabled:   authEnabledFlag || parseEnvBool("PUSHOVER_AUTH_ENABLED", defaultAuthEnabled),

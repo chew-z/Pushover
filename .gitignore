@@ -5,32 +5,23 @@ go.sum
 bin/**
 
 .env
+.markdownlint.yaml
 
 *_test.go
 test_*
 
 AGENTS.md
+CODANNA.md
 GOLANG.md
 GODOC.md
-CODANNA.md
+LSP.md
 
-reports/**
-.repomix/
-repomix.config.json
-repomix-output.xml
-
-.aider*
-.claude/**
-.codex/**
-.gemini/**
-.vscode/**
-
+.claude/
+.codex/
+.qoder/
 .mcp.json
-
 .codanna/**
 .codannaignore
-# local folder
-.fastembed_cache/**
 # link to global
 .fastembed_cache
 

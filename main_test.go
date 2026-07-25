@@ -950,6 +950,29 @@ func TestRun_HelpFlag(t *testing.T) {
 	}
 }
 
+func TestRun_InvalidFlag(t *testing.T) {
+	err := Run([]string{"pushover", "-bogus-flag", "test"}, nil)
+	if err == nil {
+		t.Fatal("Expected error for unknown flag")
+	}
+	if !strings.Contains(err.Error(), "argument parsing failed") {
+		t.Errorf("Expected parse error, got: %v", err)
+	}
+}
+
+func TestRun_ClientCreationFailure(t *testing.T) {
+	t.Setenv("APP_KEY", "")
+	t.Setenv("RECIPIENT_KEY", "")
+
+	err := Run([]string{"pushover", "-m", "test"}, nil)
+	if err == nil {
+		t.Fatal("Expected error when client creation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to create Pushover client") {
+		t.Errorf("Expected client creation error, got: %v", err)
+	}
+}
+
 // --- SendNotification ---
 
 func TestSendNotification_Error(t *testing.T) {

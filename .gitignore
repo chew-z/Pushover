@@ -3,7 +3,6 @@
 go.sum
 .golangci.yml
 bin/**
-.github/
 
 .env
 .markdownlint.yaml
@@ -27,6 +26,7 @@ LSP.md
 .fastembed_cache
 
 run_*.sh
+!run_release.sh
 run_format.sh
 run_lint.sh
 run_tests.sh

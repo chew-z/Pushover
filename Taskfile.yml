@@ -1,0 +1,58 @@
+version: "3"
+
+vars:
+  BINARY_NAME: pushover
+  BUILD_DIR: bin
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the binary with version injection
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -ldflags "-X main.version={{.VERSION}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} .
+
+  test:
+    desc: Run tests with coverage
+    cmds:
+      - go test -v -cover ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run
+
+  fmt:
+    desc: Format code
+    cmds:
+      - gofmt -w .
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf {{.BUILD_DIR}}
+
+  install:
+    desc: Install binary to /usr/local/bin
+    deps: [build]
+    cmds:
+      - sudo cp {{.BUILD_DIR}}/{{.BINARY_NAME}} /usr/local/bin/
+
+  check:
+    desc: Run full local gate (fmt + lint + test + build)
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: test
+      - task: build
+
+  release:
+    desc: Create a GitHub release
+    cmds:
+      - ./run_release.sh

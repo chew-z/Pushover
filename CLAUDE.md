@@ -11,9 +11,9 @@ A Go-based command-line utility and MCP server for sending Pushover notification
 - **Authentication**: JWT-based authentication for the MCP server's HTTP transport, using the `github.com/golang-jwt/jwt/v5` library.
 
 ## Development Guidelines
-- **Testing**: Use `make test` to run the test suite. Tests are table-driven and use mock objects. MCP schema validation is tested end-to-end via `client.NewInProcessClient` in `TestMCPSchemaValidation` (requires `Start` → `Initialize` → `CallTool` sequence).
-- **Linting**: Use `make lint` or `./run_lint.sh` to run `golangci-lint`. Config is in `.golangci.yml` (v2 format); pre-existing `errcheck` patterns for stdout writes and JSON encoding are excluded there.
-- **Formatting**: Use `make fmt` to run `gofmt`.
+- **Testing**: Use `task test` to run the test suite. Tests are table-driven and use mock objects. MCP schema validation is tested end-to-end via `client.NewInProcessClient` in `TestMCPSchemaValidation` (requires `Start` → `Initialize` → `CallTool` sequence).
+- **Linting**: Use `task lint` or `./run_lint.sh` to run `golangci-lint`. Config is in `.golangci.yml` (v2 format); pre-existing `errcheck` patterns for stdout writes and JSON encoding are excluded there.
+- **Formatting**: Use `task fmt` to run `gofmt`.
 - **Error Handling**: Propagate errors; do not use `log.Fatal`.
 
 ## Current Focus Areas

@@ -26,11 +26,11 @@ cd Pushover
 go build -o bin/pushover .
 ```
 
-### Using Makefile
+### Using Taskfile
 ```bash
-make build    # Build with version injection
-make install  # Install system-wide
-make clean    # Clean build artifacts
+task build    # Build with version injection
+task install  # Install system-wide
+task clean    # Clean build artifacts
 ```
 
 ## Configuration
@@ -264,12 +264,13 @@ Send push notifications via Pushover
 
 ### Build System
 ```bash
-make build      # Build binary with version injection
-make test       # Run all tests
-make lint       # Run golangci-lint
-make fmt        # Format code
-make clean      # Clean build artifacts
-make install    # Install binary system-wide
+task build      # Build binary with version injection
+task test       # Run all tests
+task lint       # Run golangci-lint
+task fmt        # Format code
+task clean      # Clean build artifacts
+task install    # Install binary system-wide
+task check      # Full local gate (fmt + lint + test + build)
 ```
 
 ### Testing

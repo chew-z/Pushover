@@ -25,13 +25,13 @@ type Config struct {
 // MCPConfig holds the MCP server configuration
 type MCPConfig struct {
 	// HTTP transport settings
-	HTTPAddress                 string
-	HTTPPath                    string
-	HTTPStateless               bool
-	HTTPHeartbeat               time.Duration
-	HTTPTimeout                 time.Duration
-	HTTPCORSEnabled             bool
-	HTTPCORSOrigins             []string
+	HTTPAddress                    string
+	HTTPPath                       string
+	HTTPStateless                  bool
+	HTTPHeartbeat                  time.Duration
+	HTTPTimeout                    time.Duration
+	HTTPCORSEnabled                bool
+	HTTPCORSOrigins                []string
 	HTTPDisableLocalhostProtection bool
 
 	// Authentication settings
@@ -57,16 +57,16 @@ type MCPConfig struct {
 // here — so it must stay off by default or every proxied request 403s with
 // "invalid Host header".
 const (
-	defaultHTTPAddress                 = "127.0.0.1:8080"
-	defaultHTTPPath                    = "/mcp"
-	defaultHTTPStateless               = false
-	defaultHTTPHeartbeat               = 30 * time.Second
-	defaultHTTPTimeout                 = 30 * time.Second
-	defaultHTTPCORSEnabled             = true
+	defaultHTTPAddress                    = "127.0.0.1:8080"
+	defaultHTTPPath                       = "/mcp"
+	defaultHTTPStateless                  = false
+	defaultHTTPHeartbeat                  = 30 * time.Second
+	defaultHTTPTimeout                    = 30 * time.Second
+	defaultHTTPCORSEnabled                = true
 	defaultHTTPDisableLocalhostProtection = true
-	defaultAuthEnabled                 = false
-	defaultExpireTime                  = 180
-	defaultRetryTime                   = 60
+	defaultAuthEnabled                    = false
+	defaultExpireTime                     = 180
+	defaultRetryTime                      = 60
 )
 
 // LoadConfig loads the configuration from environment variables
@@ -110,13 +110,13 @@ func LoadConfig() Config {
 func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
 	config := &MCPConfig{
 		// HTTP transport settings
-		HTTPAddress:     getEnvWithDefault("PUSHOVER_HTTP_ADDRESS", defaultHTTPAddress),
-		HTTPPath:        getEnvWithDefault("PUSHOVER_HTTP_PATH", defaultHTTPPath),
-		HTTPStateless:   parseEnvBool("PUSHOVER_HTTP_STATELESS", defaultHTTPStateless),
-		HTTPHeartbeat:   parseEnvDuration("PUSHOVER_HTTP_HEARTBEAT", defaultHTTPHeartbeat),
-		HTTPTimeout:     parseEnvDuration("PUSHOVER_HTTP_TIMEOUT", defaultHTTPTimeout),
-		HTTPCORSEnabled:             parseEnvBool("PUSHOVER_HTTP_CORS_ENABLED", defaultHTTPCORSEnabled),
-		HTTPCORSOrigins:             parseEnvStringSlice("PUSHOVER_HTTP_CORS_ORIGINS", []string{}),
+		HTTPAddress:                    getEnvWithDefault("PUSHOVER_HTTP_ADDRESS", defaultHTTPAddress),
+		HTTPPath:                       getEnvWithDefault("PUSHOVER_HTTP_PATH", defaultHTTPPath),
+		HTTPStateless:                  parseEnvBool("PUSHOVER_HTTP_STATELESS", defaultHTTPStateless),
+		HTTPHeartbeat:                  parseEnvDuration("PUSHOVER_HTTP_HEARTBEAT", defaultHTTPHeartbeat),
+		HTTPTimeout:                    parseEnvDuration("PUSHOVER_HTTP_TIMEOUT", defaultHTTPTimeout),
+		HTTPCORSEnabled:                parseEnvBool("PUSHOVER_HTTP_CORS_ENABLED", defaultHTTPCORSEnabled),
+		HTTPCORSOrigins:                parseEnvStringSlice("PUSHOVER_HTTP_CORS_ORIGINS", []string{}),
 		HTTPDisableLocalhostProtection: parseEnvBool("PUSHOVER_HTTP_DISABLE_LOCALHOST_PROTECTION", defaultHTTPDisableLocalhostProtection),
 
 		// Authentication settings - prioritize command-line flags over environment

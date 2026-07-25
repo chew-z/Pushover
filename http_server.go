@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -91,15 +91,15 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("MCP Pushover server starting on %s%s", hsm.config.HTTPAddress, hsm.config.HTTPPath)
+		slog.Info("HTTP server listening", "address", hsm.config.HTTPAddress, "path", hsm.config.HTTPPath)
 		if err := hsm.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
+			slog.Error("HTTP server error", "error", err)
 		}
 	}()
 
 	// Wait for shutdown signal
 	<-stopChan
-	log.Println("Shutting down HTTP server...")
+	slog.Info("shutting down HTTP server")
 
 	// Create shutdown context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -110,7 +110,7 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 		return fmt.Errorf("server shutdown failed: %w", err)
 	}
 
-	log.Println("HTTP server stopped")
+	slog.Info("HTTP server stopped")
 	return nil
 }
 

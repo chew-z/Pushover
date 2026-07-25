@@ -1,7 +1,8 @@
 package main
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 
 	_ "github.com/joho/godotenv/autoload"
@@ -29,12 +30,9 @@ func main() {
 	if subcommand, hasSubcmd := hasSubcommand(os.Args); hasSubcmd {
 		switch subcommand {
 		case "mcp":
-			// Configure logging for server mode
-			log.SetFlags(log.LstdFlags)
-
 			// Parse MCP subcommand arguments
 			if err := parseMCPArgs(os.Args); err != nil {
-				log.Printf("MCP error: %v", err)
+				slog.Error("MCP server failed", "error", err)
 				os.Exit(1)
 			}
 			return
@@ -42,10 +40,9 @@ func main() {
 	}
 
 	// Default CLI mode
-	log.SetFlags(0) // Clean output without timestamps for CLI mode
 	err := Run(os.Args, nil)
 	if err != nil {
-		log.Printf("Error: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }

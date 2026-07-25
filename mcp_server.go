@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -60,6 +60,8 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 
 // runMCPServerWithTransport starts the MCP server with the specified transport mode
 func runMCPServerWithTransport(transport string, authEnabled bool) error {
+	setupServerLogging(transport)
+
 	// Load MCP configuration
 	config, err := NewMCPConfig(authEnabled)
 	if err != nil {
@@ -71,11 +73,11 @@ func runMCPServerWithTransport(transport string, authEnabled bool) error {
 
 	switch transport {
 	case "stdio":
-		log.Println("Starting MCP server with STDIO transport...")
+		slog.Info("starting MCP server")
 		return server.ServeStdio(mcpServer)
 
 	case "http":
-		log.Printf("Starting MCP server with HTTP transport on %s%s...", config.HTTPAddress, config.HTTPPath)
+		slog.Info("starting MCP server", "address", config.HTTPAddress, "path", config.HTTPPath)
 		httpManager := NewHTTPServerManager(config)
 		return httpManager.Start(mcpServer)
 
@@ -91,15 +93,16 @@ func wrapWithAuth(
 	config *MCPConfig,
 ) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		log.Printf("Calling tool '%s'...", toolName)
+		slog.Debug("tool call started", "tool", toolName)
 
 		// Check authentication for HTTP requests
 		if isHTTPRequest(ctx) && config.AuthEnabled {
 			if !isAuthenticated(ctx) {
 				authError := getAuthError(ctx)
+				slog.Warn("tool call rejected", "tool", toolName, "reason", authError)
 				return mcp.NewToolResultError(fmt.Sprintf("Authentication required: %s", authError)), nil
 			}
-			log.Printf("Tool '%s' called by user: %s", toolName, getUsername(ctx))
+			slog.Info("tool call authenticated", "tool", toolName, "user", getUsername(ctx))
 		}
 
 		// Call the actual handler
@@ -107,9 +110,9 @@ func wrapWithAuth(
 
 		// Log result
 		if err != nil {
-			log.Printf("Tool '%s' failed: %v", toolName, err)
+			slog.Error("tool call failed", "tool", toolName, "error", err)
 		} else {
-			log.Printf("Tool '%s' completed successfully", toolName)
+			slog.Info("tool call completed", "tool", toolName)
 		}
 
 		return result, err

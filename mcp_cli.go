@@ -45,6 +45,7 @@ func showMCPHelp(progName string) {
 	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_CORS_ORIGINS     Allowed origins (default \"*\")")
 	fmt.Fprintln(os.Stdout, "  PUSHOVER_AUTH_ENABLED          Enable JWT authentication (default false)")
 	fmt.Fprintln(os.Stdout, "  PUSHOVER_AUTH_SECRET_KEY       JWT signing secret")
+	fmt.Fprintln(os.Stdout, "  PUSHOVER_LOG_LEVEL             Log level: debug, info, warn, error (default \"info\")")
 }
 
 // parseMCPArgs parses MCP subcommand arguments

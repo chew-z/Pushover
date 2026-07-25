@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1325,5 +1326,71 @@ func TestHandleGenerateToken_Defaults(t *testing.T) {
 	}
 	if resp["role"] != "user" {
 		t.Errorf("role = %v, want user", resp["role"])
+	}
+}
+
+// --- Structured Logging Tests ---
+
+func TestParseLogLevel(t *testing.T) {
+	cases := []struct {
+		input string
+		want  slog.Level
+	}{
+		{"debug", slog.LevelDebug},
+		{"DEBUG", slog.LevelDebug},
+		{"info", slog.LevelInfo},
+		{"warn", slog.LevelWarn},
+		{"warning", slog.LevelWarn},
+		{"error", slog.LevelError},
+		{" error ", slog.LevelError},
+		{"", slog.LevelInfo},
+		{"bogus", slog.LevelInfo},
+	}
+
+	for _, tc := range cases {
+		if got := parseLogLevel(tc.input); got != tc.want {
+			t.Errorf("parseLogLevel(%q) = %v, want %v", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestSetupServerLogging(t *testing.T) {
+	defer slog.SetDefault(slog.Default())
+
+	t.Setenv("PUSHOVER_LOG_LEVEL", "warn")
+
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	setupServerLogging("http")
+	slog.Info("should be filtered")
+	slog.Warn("visible message", "key", "value")
+
+	_ = w.Close()
+	os.Stderr = oldStderr
+
+	out, _ := io.ReadAll(r)
+	output := string(out)
+
+	if strings.Contains(output, "should be filtered") {
+		t.Error("Info message should be filtered at warn level")
+	}
+	if !strings.Contains(output, "visible message") {
+		t.Fatal("Warn message missing from output")
+	}
+
+	var entry map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &entry); err != nil {
+		t.Fatalf("Log output is not valid JSON: %v\noutput: %s", err, output)
+	}
+	if entry["service"] != "pushover-mcp" {
+		t.Errorf("service = %v, want pushover-mcp", entry["service"])
+	}
+	if entry["transport"] != "http" {
+		t.Errorf("transport = %v, want http", entry["transport"])
+	}
+	if entry["key"] != "value" {
+		t.Errorf("key = %v, want value", entry["key"])
 	}
 }

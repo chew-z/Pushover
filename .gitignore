@@ -1,14 +1,11 @@
 .DS_Store
 
-go.sum
-.golangci.yml
 bin/**
+
+!go.sum
 
 .env
 .markdownlint.yaml
-
-*_test.go
-test_*
 
 AGENTS.md
 CODANNA.md

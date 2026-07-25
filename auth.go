@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -118,7 +119,7 @@ func (am *AuthMiddleware) validateJWT(tokenString string) (*Claims, error) {
 		return claims, nil
 	}
 
-	return nil, fmt.Errorf("invalid token")
+	return nil, errors.New("invalid token")
 }
 
 // GenerateJWT generates a JWT token for the given user information

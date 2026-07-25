@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -106,7 +107,7 @@ func generateTokenFromArgs(userID, username, role string, expirationHours int) e
 	}
 
 	if config.AuthSecretKey == "" {
-		return fmt.Errorf("PUSHOVER_AUTH_SECRET_KEY environment variable is required for token generation")
+		return errors.New("PUSHOVER_AUTH_SECRET_KEY environment variable is required for token generation")
 	}
 
 	authMiddleware := NewAuthMiddleware(config.AuthSecretKey, true)

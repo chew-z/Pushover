@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -92,7 +93,7 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 	// Start server in a goroutine
 	go func() {
 		slog.Info("HTTP server listening", "address", hsm.config.HTTPAddress, "path", hsm.config.HTTPPath)
-		if err := hsm.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := hsm.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("HTTP server error", "error", err)
 		}
 	}()

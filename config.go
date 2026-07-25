@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -166,11 +167,11 @@ func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
 func (c *MCPConfig) Validate() error {
 	// Validate required Pushover fields
 	if c.PushoverAppKey == "" {
-		return fmt.Errorf("APP_KEY environment variable is required")
+		return errors.New("APP_KEY environment variable is required")
 	}
 
 	if c.PushoverRecipientKey == "" {
-		return fmt.Errorf("RECIPIENT_KEY environment variable is required")
+		return errors.New("RECIPIENT_KEY environment variable is required")
 	}
 
 	// Validate priority range (-2 to 2)
@@ -180,15 +181,15 @@ func (c *MCPConfig) Validate() error {
 
 	// Validate expire and retry for emergency priority
 	if c.PushoverDefaultPriority == int(pushover.PriorityEmergency) && c.PushoverDefaultExpire <= 0 {
-		return fmt.Errorf("PUSHOVER_EXPIRE must be > 0 for emergency priority messages")
+		return errors.New("PUSHOVER_EXPIRE must be > 0 for emergency priority messages")
 	}
 	if c.PushoverDefaultPriority == int(pushover.PriorityEmergency) && c.PushoverDefaultRetry < 30 {
-		return fmt.Errorf("PUSHOVER_RETRY must be >= 30 seconds for emergency priority messages")
+		return errors.New("PUSHOVER_RETRY must be >= 30 seconds for emergency priority messages")
 	}
 
 	// Validate auth secret key if auth is enabled
 	if c.AuthEnabled && c.AuthSecretKey == "" {
-		return fmt.Errorf("PUSHOVER_AUTH_SECRET_KEY is required when authentication is enabled")
+		return errors.New("PUSHOVER_AUTH_SECRET_KEY is required when authentication is enabled")
 	}
 
 	return nil

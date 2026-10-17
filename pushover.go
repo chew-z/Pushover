@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -112,7 +113,7 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 		expireTime = cliArgs.ExpireTime
 	}
 	if expireTime > maxExpireSeconds {
-		return nil, errors.New("expire must be at most 10800 seconds")
+		return nil, fmt.Errorf("expire must be at most %d seconds", maxExpireSeconds)
 	}
 	message.Expire = time.Duration(expireTime) * time.Second
 

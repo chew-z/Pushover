@@ -27,6 +27,9 @@ tags: [status]
 
 ## Recent changes
 
+- 2026-10-17 — Notification inputs and MCP parity expanded: added a testable client seam; cancellation and Glances client methods;
+  explicit priority zero; URL/title, HTML/monospace, TTL and timestamp support; shared send-result formatting; the 10,800-second
+  emergency expire cap; and `/capabilities` metadata derived from registered MCP tools.
 - 2026-10-17 — Scaffold re-initialization finished: Taskfile merged, lint and markdown configs refreshed,
   docs filled from the code, `.gitignore` corrected so gate config and rules are versioned.
   Fixed version injection by making `main.version` a variable (`main.go:11`).

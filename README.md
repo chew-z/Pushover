@@ -130,8 +130,15 @@ PUSHOVER_EXPIRE=180
 -t, -title      Message title
 -p, -priority   Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)
 -s, -sound      Sound name (see sounds list below)
--e, -expire     Expire time in seconds (for emergency messages)
+-e, -expire     Expire time in seconds for emergency messages (max 10800)
+-r, -retry      Retry interval in seconds for emergency messages (min 30)
 -d, -device     Target device name
+-url            Supplementary URL shown with the notification
+-url-title      Title for the supplementary URL (requires -url)
+-html           Render the message as HTML
+-monospace      Render the message in a monospace font
+-ttl            Seconds until the notification is deleted (0 = unset)
+-timestamp      Unix timestamp in seconds to display (0 = unset)
 -h, -help       Show help
 -version        Show version
 ```
@@ -286,10 +293,17 @@ Send push notifications via Pushover
 
 - `message` (required): Notification message text (max 1024 chars)
 - `title` (optional): Notification title
-- `priority` (optional): Priority level (-2 to 2)
+- `priority` (optional): Priority level (-2 to 2). Priority 2 requires both `retry` and `expire`.
 - `device` (optional): Target device name  
 - `sound` (optional): Notification sound name
-- `expire` (optional): Expiration time for emergency messages
+- `url` (optional): Supplementary URL shown with the notification (max 512 chars)
+- `url_title` (optional): Title for the supplementary URL (max 100 chars; requires `url`)
+- `html` (optional): Render the message as HTML (mutually exclusive with `monospace`)
+- `monospace` (optional): Render the message in a monospace font (mutually exclusive with `html`)
+- `ttl` (optional): Seconds until the notification is deleted from devices (min 1; ignored for priority 2)
+- `timestamp` (optional): Unix timestamp in seconds to display (min 1)
+- `expire` (optional): Seconds Pushover keeps retrying a priority 2 notification (1–10800). Priority 2 requires both `retry` and `expire`.
+- `retry` (optional): Seconds between retries for a priority 2 notification (30–86400). Priority 2 requires both `retry` and `expire`.
 
 ## Development
 

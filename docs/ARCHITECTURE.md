@@ -51,7 +51,7 @@ Each tool call passes through `wrapWithAuth` (`mcp_server.go:90`), which enforce
 The tool result carries the response text and, for emergency priority, the receipt (`mcp_server.go:167`).
 
 The HTTP transport mounts the MCP handler at `/` (`http_server.go:66`) with the configured endpoint path handled by mcp-go
-(`config.go:62`), plus `/health` (`http_server.go:69`) and `/capabilities` (`http_server.go:72`).
+(`config.go:62`), plus `/health` (`http_server.go:69`) and `/capabilities`, which derives advertised tool metadata from registered tools (`http_server.go:123`).
 JWT is validated by `AuthMiddleware.HTTPContextFunc` (`auth.go:50`) and stored in the request context.
 The handler for `/generate-token` exists (`http_server.go:189`) but is not registered on the mux.
 
@@ -61,7 +61,7 @@ No database, no files, no queues.
 The shapes that matter are `Config` and `MCPConfig` (`config.go:15`, `config.go:27`),
 `CLIArgs` (`cli.go:13`), the Pushover message built in `CreateMessage` (`pushover.go:47`),
 and JWT `Claims` (`auth.go:21`).
-Message fields set by the project: priority, sound, expire, retry, device, title and timestamp (`pushover.go:53`).
+Message fields set by the project: priority, sound, expire, retry, device, title, url, url_title, html/monospace and ttl; timestamp is set only when supplied (`pushover.go:69`).
 
 ## Configuration
 

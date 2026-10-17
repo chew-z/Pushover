@@ -221,12 +221,11 @@ func TestHandleSendNotification(t *testing.T) {
 	}
 }
 
-// TestSendNotificationSchemaValidation verifies MCP validation rejects invalid notification arguments before sending.
-func TestSendNotificationSchemaValidation(t *testing.T) {
-	mock := &MockPushoverClient{}
-	swapNewPushoverClient(t, mock)
+// newTestInProcessMCPClient creates and initializes an MCP client for a test server.
+func newTestInProcessMCPClient(t *testing.T, config *MCPConfig) (*client.Client, context.Context) {
+	t.Helper()
 
-	mcpServer := setupMCPServer(newTestMCPConfig())
+	mcpServer := setupMCPServer(config)
 	mcpClient, err := client.NewInProcessClient(mcpServer)
 	if err != nil {
 		t.Fatalf("NewInProcessClient() error = %v", err)
@@ -244,6 +243,16 @@ func TestSendNotificationSchemaValidation(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Initialize() error = %v", err)
 	}
+
+	return mcpClient, ctx
+}
+
+// TestSendNotificationSchemaValidation verifies MCP validation rejects invalid notification arguments before sending.
+func TestSendNotificationSchemaValidation(t *testing.T) {
+	mock := &MockPushoverClient{}
+	swapNewPushoverClient(t, mock)
+
+	mcpClient, ctx := newTestInProcessMCPClient(t, newTestMCPConfig())
 
 	testCases := []struct {
 		name      string
@@ -271,5 +280,56 @@ func TestSendNotificationSchemaValidation(t *testing.T) {
 				t.Fatalf("mock received a message: %#v", mock.lastMessage)
 			}
 		})
+	}
+}
+
+// TestSendNotificationJSONArguments verifies JSON-RPC arguments reach the Pushover message.
+func TestSendNotificationJSONArguments(t *testing.T) {
+	mock := &MockPushoverClient{}
+	swapNewPushoverClient(t, mock)
+	config := newTestMCPConfig()
+	config.PushoverDefaultPriority = -1
+	mcpClient, ctx := newTestInProcessMCPClient(t, config)
+
+	result, err := mcpClient.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "send_notification",
+			Arguments: map[string]any{
+				"message":   "m",
+				"priority":  0,
+				"ttl":       3600,
+				"timestamp": 1700000000,
+				"url":       "https://example.com",
+				"url_title": "Ex",
+				"html":      true,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("CallTool() result = %v, want success", result)
+	}
+	if mock.lastMessage == nil {
+		t.Fatal("mock did not receive a message")
+	}
+	if mock.lastMessage.Priority != 0 {
+		t.Errorf("Priority = %d, want 0", mock.lastMessage.Priority)
+	}
+	if mock.lastMessage.TTL != time.Hour {
+		t.Errorf("TTL = %v, want %v", mock.lastMessage.TTL, time.Hour)
+	}
+	if mock.lastMessage.Timestamp != 1700000000 {
+		t.Errorf("Timestamp = %d, want 1700000000", mock.lastMessage.Timestamp)
+	}
+	if mock.lastMessage.URL != "https://example.com" {
+		t.Errorf("URL = %q, want https://example.com", mock.lastMessage.URL)
+	}
+	if mock.lastMessage.URLTitle != "Ex" {
+		t.Errorf("URLTitle = %q, want Ex", mock.lastMessage.URLTitle)
+	}
+	if !mock.lastMessage.HTML {
+		t.Error("HTML = false, want true")
 	}
 }

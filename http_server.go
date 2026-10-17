@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
@@ -20,7 +21,9 @@ import (
 type HTTPServerManager struct {
 	httpServer *http.Server
 	mcpServer  *server.StreamableHTTPServer
-	config     *MCPConfig
+	// tools is the source of the tool list advertised by /capabilities.
+	tools  *server.MCPServer
+	config *MCPConfig
 }
 
 // NewHTTPServerManager creates a new HTTP server manager
@@ -31,6 +34,7 @@ func NewHTTPServerManager(config *MCPConfig) *HTTPServerManager {
 // buildHandler assembles the HTTP mux and MCP transport; it omits a "/" catch-all because
 // mcp-go's ServeHTTP ignores the path, so the mux enforces HTTPPath and every other path returns 404.
 func (hsm *HTTPServerManager) buildHandler(mcpServer *server.MCPServer) (http.Handler, error) {
+	hsm.tools = mcpServer
 	opts := []server.StreamableHTTPOption{server.WithStateLess(hsm.config.HTTPStateless), server.WithEndpointPath(hsm.config.HTTPPath), server.WithHTTPContextFunc(copyActor)}
 	if hsm.config.HTTPHeartbeat > 0 {
 		opts = append(opts, server.WithHeartbeatInterval(hsm.config.HTTPHeartbeat))
@@ -124,11 +128,53 @@ func (hsm *HTTPServerManager) handleCapabilities(w http.ResponseWriter, r *http.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	capabilities := map[string]any{
-		"name": "pushover-mcp-server", "version": version, "description": "MCP server for sending Pushover notifications", "transport": "http",
-		"tools":          []map[string]any{{"name": "send_notification", "description": "Send a notification via Pushover", "parameters": map[string]any{"message": "required - The notification message to send", "title": "optional - Title for the notification", "priority": "optional - Priority level (-2 to 2)", "device": "optional - Target device name", "sound": "optional - Notification sound", "expire": "optional - Expiration time for emergency messages"}}},
-		"authentication": map[string]any{"enabled": hsm.config.AuthEnabled, "type": "bearer", "oauth": hsm.config.OAuthEnabled}, "features": []string{"notifications", "health_check", "capabilities_discovery"},
+		"name":        "pushover-mcp-server",
+		"version":     version,
+		"description": "MCP server for sending Pushover notifications",
+		"transport":   "http",
+		"tools":       capabilityTools(hsm.tools),
+		"authentication": map[string]any{
+			"enabled": hsm.config.AuthEnabled,
+			"type":    "bearer",
+			"oauth":   hsm.config.OAuthEnabled,
+		},
+		"features": []string{"notifications", "health_check", "capabilities_discovery"},
 	}
 	_ = json.NewEncoder(w).Encode(capabilities)
+}
+
+// capabilityTools returns deterministic capability data for the registered MCP tools.
+func capabilityTools(s *server.MCPServer) []map[string]any {
+	tools := make([]map[string]any, 0)
+	if s == nil {
+		return tools
+	}
+
+	registered := s.ListTools()
+	names := make([]string, 0, len(registered))
+	for name := range registered {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	for _, name := range names {
+		serverTool := registered[name]
+		if serverTool == nil {
+			continue
+		}
+		tool := serverTool.Tool
+		inputSchema := any(tool.InputSchema)
+		if len(tool.RawInputSchema) > 0 {
+			inputSchema = tool.RawInputSchema
+		}
+		tools = append(tools, map[string]any{
+			"name":        tool.Name,
+			"description": tool.Description,
+			"inputSchema": inputSchema,
+		})
+	}
+
+	return tools
 }
 
 // corsMiddleware adds CORS headers to HTTP responses

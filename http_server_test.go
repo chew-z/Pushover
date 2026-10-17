@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -32,6 +33,70 @@ func TestBuildHandlerRoutes(t *testing.T) {
 		if response.Code != http.StatusOK {
 			t.Errorf("%s: status = %d", target, response.Code)
 		}
+	}
+}
+
+// TestCapabilitiesReflectRegisteredTools verifies /capabilities exposes registered tool schemas.
+func TestCapabilitiesReflectRegisteredTools(t *testing.T) {
+	config := newTestMCPConfig()
+	config.AuthEnabled = false
+	config.HTTPCORSEnabled = false
+	mcpServer := setupMCPServer(config)
+	handler, err := NewHTTPServerManager(config).buildHandler(mcpServer)
+	if err != nil {
+		t.Fatalf("buildHandler() error = %v", err)
+	}
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/capabilities", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("/capabilities status = %d, want %d", response.Code, http.StatusOK)
+	}
+
+	var payload struct {
+		Tools []struct {
+			Name        string `json:"name"`
+			InputSchema struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+				Required   []string                   `json:"required"`
+			} `json:"inputSchema"`
+		} `json:"tools"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode capabilities response: %v", err)
+	}
+	if len(payload.Tools) != 1 {
+		t.Fatalf("tool count = %d, want 1", len(payload.Tools))
+	}
+	tool := payload.Tools[0]
+	if tool.Name != "send_notification" {
+		t.Fatalf("tool name = %q, want send_notification", tool.Name)
+	}
+	for _, property := range []string{"url", "ttl", "retry"} {
+		if _, ok := tool.InputSchema.Properties[property]; !ok {
+			t.Errorf("inputSchema.properties is missing %q", property)
+		}
+	}
+	messageRequired := false
+	for _, required := range tool.InputSchema.Required {
+		if required == "message" {
+			messageRequired = true
+			break
+		}
+	}
+	if !messageRequired {
+		t.Errorf("inputSchema.required = %v, want message", tool.InputSchema.Required)
+	}
+}
+
+// TestCapabilityToolsNil verifies capabilityTools returns an empty JSON-array-compatible slice without a server.
+func TestCapabilityToolsNil(t *testing.T) {
+	tools := capabilityTools(nil)
+	if tools == nil {
+		t.Fatal("capabilityTools(nil) returned a nil slice")
+	}
+	if len(tools) != 0 {
+		t.Errorf("capabilityTools(nil) length = %d, want 0", len(tools))
 	}
 }
 

@@ -303,6 +303,7 @@ func TestHttpServerEndpoints(t *testing.T) {
 	// Create an MCP server instance to handle capability requests
 	mcpServer := setupMCPServer(config)
 	hsm.mcpServer = server.NewStreamableHTTPServer(mcpServer)
+	hsm.tools = mcpServer
 
 	t.Run("Health Endpoint", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil)

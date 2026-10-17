@@ -27,6 +27,7 @@ func TestHandleSendNotification(t *testing.T) {
 		wantHTML        bool
 		wantMonospace   bool
 		wantTTL         time.Duration
+		wantTimestamp   int64
 		wantNoMessage   bool
 	}{
 		{
@@ -100,6 +101,17 @@ func TestHandleSendNotification(t *testing.T) {
 			wantMessage: "test message",
 			wantTTL:     0,
 		},
+		{
+			name:          "timestamp",
+			arguments:     map[string]any{"message": "test message", "timestamp": float64(1700000000)},
+			wantMessage:   "test message",
+			wantTimestamp: 1700000000,
+		},
+		{
+			name:        "timestamp omitted",
+			arguments:   map[string]any{"message": "test message"},
+			wantMessage: "test message",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -157,6 +169,9 @@ func TestHandleSendNotification(t *testing.T) {
 				}
 				if mock.lastMessage.TTL != tc.wantTTL {
 					t.Errorf("TTL = %v, want %v", mock.lastMessage.TTL, tc.wantTTL)
+				}
+				if mock.lastMessage.Timestamp != tc.wantTimestamp {
+					t.Errorf("Timestamp = %d, want %d", mock.lastMessage.Timestamp, tc.wantTimestamp)
 				}
 			}
 		})

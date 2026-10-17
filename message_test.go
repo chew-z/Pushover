@@ -112,3 +112,34 @@ func TestCreateMessageTTL(t *testing.T) {
 		})
 	}
 }
+
+// TestCreateMessageTimestamp verifies optional timestamp validation and propagation.
+func TestCreateMessageTimestamp(t *testing.T) {
+	testCases := []struct {
+		name      string
+		timestamp int64
+		wantError string
+	}{
+		{"timestamp omitted", 0, ""},
+		{"timestamp set", 1700000000, ""},
+		{"negative timestamp", -1, "timestamp must be a positive Unix time in seconds"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			message, err := CreateMessage("test", "", Config{}, &CLIArgs{Timestamp: tc.timestamp})
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("CreateMessage() error = %v, want %q", err, tc.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CreateMessage() error = %v", err)
+			}
+			if message.Timestamp != tc.timestamp {
+				t.Errorf("Timestamp = %d, want %d", message.Timestamp, tc.timestamp)
+			}
+		})
+	}
+}

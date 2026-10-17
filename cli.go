@@ -25,7 +25,9 @@ type CLIArgs struct {
 	// Monospace renders the message in a monospace font.
 	Monospace bool
 	// TTL is seconds until the notification is deleted; 0 means unset.
-	TTL         int
+	TTL int
+	// Timestamp is Unix seconds to display; 0 means unset.
+	Timestamp   int64
 	Sound       string
 	ExpireTime  int
 	RetryTime   int
@@ -70,6 +72,8 @@ func showMainHelp(progName string) {
 	fmt.Fprintln(os.Stdout, "        Sound name")
 	fmt.Fprintln(os.Stdout, "  -t string")
 	fmt.Fprintln(os.Stdout, "        Message title")
+	fmt.Fprintln(os.Stdout, "  -timestamp int")
+	fmt.Fprintln(os.Stdout, "        Unix timestamp in seconds to display (0 = unset)")
 	fmt.Fprintln(os.Stdout, "  -title string")
 	fmt.Fprintln(os.Stdout, "        Message title")
 	fmt.Fprintln(os.Stdout, "  -ttl int")
@@ -105,6 +109,7 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 	fs.BoolVar(&cliArgs.HTML, "html", false, "Render the message as HTML")
 	fs.BoolVar(&cliArgs.Monospace, "monospace", false, "Render the message in a monospace font")
 	fs.IntVar(&cliArgs.TTL, "ttl", 0, "Seconds until the notification is deleted (0 = unset)")
+	fs.Int64Var(&cliArgs.Timestamp, "timestamp", 0, "Unix timestamp in seconds to display (0 = unset)")
 	fs.IntVar(&cliArgs.Priority, "p", 0, "Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)")
 	fs.IntVar(&cliArgs.Priority, "priority", 0, "Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)")
 	fs.StringVar(&cliArgs.Sound, "s", "", "Sound name")

@@ -48,6 +48,10 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 				mcp.Description("Seconds until the notification is deleted from devices (min 1; ignored for priority 2 emergency messages)"),
 				mcp.Min(1),
 			),
+			mcp.WithInteger("timestamp",
+				mcp.Description("Unix timestamp in seconds to display instead of the time Pushover received the message (min 1)"),
+				mcp.Min(1),
+			),
 			mcp.WithInteger("priority",
 				mcp.Description("Priority level (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)"),
 				mcp.Min(-2),
@@ -183,6 +187,9 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	}
 	if _, ok := arguments["ttl"]; ok {
 		cliArgs.TTL = request.GetInt("ttl", 0)
+	}
+	if _, ok := arguments["timestamp"]; ok {
+		cliArgs.Timestamp = int64(request.GetInt("timestamp", 0))
 	}
 
 	// Create and send message

@@ -207,3 +207,37 @@ func TestRunTTL(t *testing.T) {
 		})
 	}
 }
+
+// TestRunTimestamp verifies CLI timestamp propagation and the unset default.
+func TestRunTimestamp(t *testing.T) {
+	testCases := []struct {
+		name          string
+		args          []string
+		wantTimestamp int64
+	}{
+		{
+			name:          "timestamp set",
+			args:          []string{"pushover", "-m", "hi", "-timestamp", "1700000000"},
+			wantTimestamp: 1700000000,
+		},
+		{
+			name: "timestamp omitted",
+			args: []string{"pushover", "-m", "hi"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := &MockPushoverClient{}
+			if err := Run(tc.args, mock); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if mock.lastMessage == nil {
+				t.Fatal("Run() did not send a message")
+			}
+			if mock.lastMessage.Timestamp != tc.wantTimestamp {
+				t.Errorf("Timestamp = %d, want %d", mock.lastMessage.Timestamp, tc.wantTimestamp)
+			}
+		})
+	}
+}

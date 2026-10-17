@@ -67,6 +67,9 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 	if cliArgs.TTL < 0 {
 		return nil, errors.New("ttl must be at least 1 second")
 	}
+	if cliArgs.Timestamp < 0 {
+		return nil, errors.New("timestamp must be a positive Unix time in seconds")
+	}
 	if utf8.RuneCountInString(cliArgs.URL) > 512 {
 		return nil, errors.New("url must be at most 512 characters")
 	}
@@ -125,9 +128,9 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 	if cliArgs.TTL > 0 {
 		message.TTL = time.Duration(cliArgs.TTL) * time.Second
 	}
-
-	// Set timestamp to now
-	message.Timestamp = time.Now().Unix()
+	if cliArgs.Timestamp > 0 {
+		message.Timestamp = cliArgs.Timestamp
+	}
 
 	return message, nil
 }

@@ -1,4 +1,4 @@
-module Pushover
+module github.com/chew-z/Pushover
 
 go 1.27.0
 
@@ -6,7 +6,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gregdel/pushover v1.4.0
 	github.com/joho/godotenv v1.5.1
-	github.com/mark3labs/mcp-go v0.56.0
+	github.com/mark3labs/mcp-go v1.3.0
 )
 
 require (

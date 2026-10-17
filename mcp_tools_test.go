@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gregdel/pushover"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -29,6 +30,9 @@ func TestHandleSendNotification(t *testing.T) {
 		wantTTL         time.Duration
 		wantTimestamp   int64
 		wantNoMessage   bool
+		response        *pushover.Response
+		actor           string
+		wantResultText  bool
 	}{
 		{
 			name:        "successful send",
@@ -112,11 +116,33 @@ func TestHandleSendNotification(t *testing.T) {
 			arguments:   map[string]any{"message": "test message"},
 			wantMessage: "test message",
 		},
+		{
+			name:        "response details",
+			arguments:   map[string]any{"message": "test message"},
+			wantMessage: "test message",
+			response: &pushover.Response{
+				Receipt: "R",
+				Limit: &pushover.Limit{
+					Remaining: 7496,
+					Total:     10000,
+					NextReset: time.Date(2026, time.November, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			wantResultText: true,
+		},
+		{
+			name:           "actor in result",
+			arguments:      map[string]any{"message": "test message"},
+			wantMessage:    "test message",
+			response:       &pushover.Response{Receipt: "R"},
+			actor:          "alice",
+			wantResultText: true,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			mock := &MockPushoverClient{shouldError: tc.shouldError}
+			mock := &MockPushoverClient{shouldError: tc.shouldError, response: tc.response}
 			swapNewPushoverClient(t, mock)
 
 			config := newTestMCPConfig()
@@ -126,7 +152,11 @@ func TestHandleSendNotification(t *testing.T) {
 			request := mcp.CallToolRequest{
 				Params: mcp.CallToolParams{Arguments: tc.arguments},
 			}
-			result, err := handleSendNotification(context.Background(), request, config)
+			ctx := context.Background()
+			if tc.actor != "" {
+				ctx = context.WithValue(ctx, actorKey{}, tc.actor)
+			}
+			result, err := handleSendNotification(ctx, request, config)
 			if err != nil {
 				t.Fatalf("handleSendNotification() error = %v", err)
 			}
@@ -138,6 +168,19 @@ func TestHandleSendNotification(t *testing.T) {
 			}
 			if tc.errorText != "" && !strings.Contains(fmt.Sprint(result), tc.errorText) {
 				t.Fatalf("result = %v, want text %q", result, tc.errorText)
+			}
+			if tc.wantResultText {
+				if len(result.Content) != 1 {
+					t.Fatalf("result content length = %d, want 1", len(result.Content))
+				}
+				content, ok := result.Content[0].(mcp.TextContent)
+				if !ok {
+					t.Fatalf("result content = %T, want mcp.TextContent", result.Content[0])
+				}
+				want := formatSendResult(tc.response, tc.actor)
+				if content.Text != want {
+					t.Errorf("result text = %q, want %q", content.Text, want)
+				}
 			}
 			if tc.wantNoMessage {
 				if mock.lastMessage != nil {

@@ -199,10 +199,11 @@ func Run(args []string, client PushoverClient) error {
 	}
 
 	// Send the notification
-	if err := SendNotification(client, pushMessage, recipient); err != nil {
+	response, err := client.SendMessage(pushMessage, recipient)
+	if err != nil {
 		return fmt.Errorf("failed to send message: %w", err)
 	}
 
-	fmt.Println("Notification sent successfully")
+	fmt.Println(formatSendResult(response, ""))
 	return nil
 }

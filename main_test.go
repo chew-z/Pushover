@@ -27,6 +27,8 @@ type MockPushoverClient struct {
 	lastGlance          *pushover.Glance
 	lastGlanceRecipient *pushover.Recipient
 	shouldError         bool
+	// response supplies the configured SendMessage response.
+	response *pushover.Response
 }
 
 // SendMessage records a message send and returns the configured mock result.
@@ -36,6 +38,9 @@ func (m *MockPushoverClient) SendMessage(message *pushover.Message, recipient *p
 
 	if m.shouldError {
 		return nil, errors.New("mock error")
+	}
+	if m.response != nil {
+		return m.response, nil
 	}
 
 	return &pushover.Response{Status: 1}, nil

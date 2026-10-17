@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -139,4 +141,29 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 func SendNotification(client PushoverClient, message *pushover.Message, recipient *pushover.Recipient) error {
 	_, err := client.SendMessage(message, recipient)
 	return err
+}
+
+// formatSendResult formats a successful Pushover response for a caller.
+func formatSendResult(resp *pushover.Response, actor string) string {
+	parts := []string{"Notification sent"}
+	if resp != nil && resp.Receipt != "" {
+		parts = append(parts, "Receipt: "+resp.Receipt)
+	}
+	if resp != nil && resp.Limit != nil {
+		quota := "Quota: " + strconv.Itoa(resp.Limit.Remaining) + "/" + strconv.Itoa(resp.Limit.Total) + " remaining"
+		if !resp.Limit.NextReset.IsZero() {
+			quota += ", resets " + resp.Limit.NextReset.UTC().Format(time.RFC3339)
+		}
+		parts = append(parts, quota)
+	}
+
+	text := strings.Join(parts, ". ")
+	if len(parts) == 1 {
+		text += "."
+	}
+	if actor != "" {
+		text += " (sent by " + actor + ")"
+	}
+
+	return text
 }

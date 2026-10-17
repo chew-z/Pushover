@@ -1,9 +1,13 @@
 package main
 
 import (
+	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gregdel/pushover"
 )
 
 // TestRunPriorityOverride verifies that explicit CLI priority zero overrides the environment default.
@@ -239,5 +243,38 @@ func TestRunTimestamp(t *testing.T) {
 				t.Errorf("Timestamp = %d, want %d", mock.lastMessage.Timestamp, tc.wantTimestamp)
 			}
 		})
+	}
+}
+
+// TestRunFormatsSendResult verifies CLI output includes successful send details.
+func TestRunFormatsSendResult(t *testing.T) {
+	mock := &MockPushoverClient{response: &pushover.Response{Receipt: "R"}}
+	originalStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	os.Stdout = writer
+	t.Cleanup(func() {
+		os.Stdout = originalStdout
+		_ = reader.Close()
+		_ = writer.Close()
+	})
+
+	if err := Run([]string{"pushover", "-m", "hi"}, mock); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("stdout writer close error = %v", err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("stdout read error = %v", err)
+	}
+	if !strings.Contains(string(output), "Notification sent.") {
+		t.Errorf("stdout = %q, want notification result", output)
+	}
+	if !strings.Contains(string(output), "Receipt: R") {
+		t.Errorf("stdout = %q, want receipt", output)
 	}
 }

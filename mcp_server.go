@@ -203,15 +203,6 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to send notification: %v", err)), nil
 	}
 
-	// Prepare response message
-	responseText := "Notification sent successfully"
-	if response != nil && response.Receipt != "" {
-		responseText += fmt.Sprintf(". Receipt: %s", response.Receipt)
-	}
-
-	if username, ok := actorFrom(ctx); ok {
-		responseText += fmt.Sprintf(" (sent by %s)", username)
-	}
-
-	return mcp.NewToolResultText(responseText), nil
+	actor, _ := actorFrom(ctx)
+	return mcp.NewToolResultText(formatSendResult(response, actor)), nil
 }

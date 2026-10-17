@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gregdel/pushover"
 )
 
 // TestCreateMessageURL verifies supplementary URL validation and message fields.
@@ -139,6 +141,32 @@ func TestCreateMessageTimestamp(t *testing.T) {
 			}
 			if message.Timestamp != tc.timestamp {
 				t.Errorf("Timestamp = %d, want %d", message.Timestamp, tc.timestamp)
+			}
+		})
+	}
+}
+
+// TestFormatSendResult verifies successful send results include available response details.
+func TestFormatSendResult(t *testing.T) {
+	reset := time.Date(2026, time.November, 1, 0, 0, 0, 0, time.UTC)
+	testCases := []struct {
+		name     string
+		response *pushover.Response
+		actor    string
+		want     string
+	}{
+		{"nil response", nil, "", "Notification sent."},
+		{"receipt only", &pushover.Response{Receipt: "R"}, "", "Notification sent. Receipt: R"},
+		{"limit with reset", &pushover.Response{Limit: &pushover.Limit{Remaining: 7496, Total: 10000, NextReset: reset}}, "", "Notification sent. Quota: 7496/10000 remaining, resets 2026-11-01T00:00:00Z"},
+		{"limit without reset", &pushover.Response{Limit: &pushover.Limit{Remaining: 7496, Total: 10000}}, "", "Notification sent. Quota: 7496/10000 remaining"},
+		{"receipt limit and actor", &pushover.Response{Receipt: "R", Limit: &pushover.Limit{Remaining: 7496, Total: 10000, NextReset: reset}}, "X", "Notification sent. Receipt: R. Quota: 7496/10000 remaining, resets 2026-11-01T00:00:00Z (sent by X)"},
+		{"nil response and actor", nil, "X", "Notification sent. (sent by X)"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := formatSendResult(tc.response, tc.actor); got != tc.want {
+				t.Errorf("formatSendResult() = %q, want %q", got, tc.want)
 			}
 		})
 	}

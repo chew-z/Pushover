@@ -1,16 +1,20 @@
 # Pushover
 
-A versatile Go application that serves as both a command-line utility and an MCP (Model Context Protocol) server for sending push notifications via Pushover. Features comprehensive configuration options, JWT authentication, and dual transport modes.
+A versatile Go application that serves as both a command-line utility and an MCP (Model Context Protocol) server
+for sending push notifications via Pushover.
+Features comprehensive configuration options, JWT authentication, and dual transport modes.
 
 ## Features
 
 ### CLI Mode
+
 - Send notifications with custom messages, titles, and priorities
 - Target specific devices with custom sounds and expiration times
 - Extensive command-line options with backwards compatibility
 - Environment variable configuration with `.env` file support
 
 ### MCP Server Mode
+
 - **STDIO Transport**: Perfect for AI system integrations
 - **HTTP Transport**: RESTful API with CORS support
 - **JWT Authentication**: Secure token-based access control
@@ -20,6 +24,7 @@ A versatile Go application that serves as both a command-line utility and an MCP
 ## Installation
 
 ### Build from Source
+
 ```bash
 git clone <repository-url>
 cd Pushover
@@ -27,6 +32,7 @@ go build -o bin/pushover .
 ```
 
 ### Using Taskfile
+
 ```bash
 task build    # Build with version injection
 task install  # Install system-wide
@@ -36,12 +42,14 @@ task clean    # Clean build artifacts
 ## Configuration
 
 ### Required Environment Variables
+
 ```env
 APP_KEY=your_pushover_app_key_here
 RECIPIENT_KEY=your_pushover_recipient_key_here
 ```
 
 ### Optional Environment Variables
+
 ```env
 # Pushover Settings
 DEVICE_NAME=iPhone                    # Target device
@@ -65,7 +73,9 @@ PUSHOVER_AUTH_SECRET_KEY=your_secret  # JWT signing secret
 ```
 
 ### Configuration File
+
 Create a `.env` file in your project directory:
+
 ```env
 APP_KEY=your_app_key_here
 RECIPIENT_KEY=your_recipient_key_here
@@ -91,6 +101,7 @@ PUSHOVER_EXPIRE=180
 ### CLI Mode
 
 #### Basic Usage
+
 ```bash
 # Using flags
 ./bin/pushover -m "Your task has completed" -t "Task Notification"
@@ -100,6 +111,7 @@ PUSHOVER_EXPIRE=180
 ```
 
 #### Advanced Usage
+
 ```bash
 # High priority with custom sound
 ./bin/pushover -m "Critical alert" -t "System Alert" -p 1 -s siren
@@ -112,6 +124,7 @@ PUSHOVER_EXPIRE=180
 ```
 
 #### Command Line Options
+
 ```bash
 -m, -message    Message to send (required)
 -t, -title      Message title
@@ -124,11 +137,15 @@ PUSHOVER_EXPIRE=180
 ```
 
 #### Available Sounds
-`pushover`, `bike`, `bugle`, `cashregister`, `classical`, `cosmic`, `falling`, `gamelan`, `incoming`, `intermission`, `magic`, `mechanical`, `pianobar`, `siren`, `spacealarm`, `tugboat`, `alien`, `climb`, `persistent`, `echo`, `updown`, `vibrate`, `none`
+
+`pushover`, `bike`, `bugle`, `cashregister`, `classical`, `cosmic`, `falling`, `gamelan`,
+`incoming`, `intermission`, `magic`, `mechanical`, `pianobar`, `siren`, `spacealarm`, `tugboat`,
+`alien`, `climb`, `persistent`, `echo`, `updown`, `vibrate`, `none`
 
 ### MCP Server Mode
 
 #### Getting Started
+
 ```bash
 # Show MCP-specific help
 ./bin/pushover mcp -h
@@ -141,6 +158,7 @@ PUSHOVER_EXPIRE=180
 ```
 
 #### Command Line Flags
+
 ```bash
 -transport string        Transport mode: 'stdio' or 'http' (default: stdio)
 -auth-enabled           Enable JWT authentication for HTTP transport
@@ -152,14 +170,18 @@ PUSHOVER_EXPIRE=180
 ```
 
 #### STDIO Transport (Default)
+
 Perfect for AI systems and command-line integrations:
+
 ```bash
 ./bin/pushover mcp
 ./bin/pushover mcp -transport stdio
 ```
 
 #### HTTP Transport
+
 RESTful API with optional authentication:
+
 ```bash
 # Basic HTTP server
 ./bin/pushover mcp -transport http
@@ -171,6 +193,7 @@ RESTful API with optional authentication:
 #### Authentication
 
 **Generate Token via Command Line:**
+
 ```bash
 # Basic token generation
 PUSHOVER_AUTH_SECRET_KEY="your-secret-key" \
@@ -186,11 +209,13 @@ PUSHOVER_AUTH_SECRET_KEY="your-secret-key" \
 ```
 
 **Use Token in HTTP Requests:**
+
 ```bash
 Authorization: Bearer <jwt_token>
 ```
 
 **Generate Token via HTTP API:**
+
 ```bash
 curl -X POST http://localhost:8080/generate-token \
   -H "Content-Type: application/json" \
@@ -200,16 +225,19 @@ curl -X POST http://localhost:8080/generate-token \
 #### HTTP Endpoints
 
 **Health Check:**
+
 ```bash
 curl http://localhost:8080/health
 ```
 
 **Capabilities Discovery:**
+
 ```bash
 curl http://localhost:8080/capabilities
 ```
 
 **Send Notification:**
+
 ```bash
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
@@ -232,6 +260,7 @@ curl -X POST http://localhost:8080/mcp \
 ## MCP Integration
 
 ### MCP Client Configuration
+
 ```json
 {
   "mcpServers": {
@@ -250,9 +279,11 @@ curl -X POST http://localhost:8080/mcp \
 ### Available MCP Tools
 
 #### `send_notification`
+
 Send push notifications via Pushover
 
 **Parameters:**
+
 - `message` (required): Notification message text (max 1024 chars)
 - `title` (optional): Notification title
 - `priority` (optional): Priority level (-2 to 2)
@@ -263,6 +294,7 @@ Send push notifications via Pushover
 ## Development
 
 ### Build System
+
 ```bash
 task build      # Build binary with version injection
 task test       # Run all tests
@@ -274,6 +306,7 @@ task check      # Full local gate (fmt + lint + test + build)
 ```
 
 ### Testing
+
 ```bash
 # Run all tests with verbose output
 ./run_test.sh
@@ -284,6 +317,7 @@ go test -v -run TestFunctionName
 ```
 
 ### Code Quality
+
 ```bash
 # Format code
 ./run_format.sh
@@ -295,11 +329,13 @@ go test -v -run TestFunctionName
 ### Testing MCP Functionality
 
 **STDIO Mode Testing:**
+
 ```bash
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | ./bin/pushover mcp -transport stdio
 ```
 
 **HTTP Mode Testing:**
+
 ```bash
 # Start server in background
 ./bin/pushover mcp -transport http &
@@ -323,6 +359,7 @@ curl -X POST http://localhost:8080/mcp \
 ## Architecture
 
 ### Design Principles
+
 - **Modular File Architecture**: Functionality split across focused files while maintaining single package design
 - **Interface-Based Design**: `PushoverClient` interface enables comprehensive mocking
 - **Dependency Injection**: Flexible testing and configuration
@@ -332,6 +369,7 @@ curl -X POST http://localhost:8080/mcp \
 - **Separation of Concerns**: Each file has a single responsibility for specific functionality
 
 ### Key Components
+
 - **`main.go`**: Simplified entry point and subcommand routing (45 lines)
 - **`pushover.go`**: Pushover client interface and implementation (93 lines)
 - **`cli.go`**: CLI argument parsing and main app logic (165 lines)
@@ -343,6 +381,7 @@ curl -X POST http://localhost:8080/mcp \
 - **`main_test.go`**: Comprehensive test suite with mocking
 
 ### Architecture Benefits
+
 - **Maintainability**: Smaller, focused files (45-194 lines) vs previous 600+ line monolith
 - **Readability**: Easy to navigate and understand individual components
 - **Testability**: Components can be tested in isolation

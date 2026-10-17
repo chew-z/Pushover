@@ -46,3 +46,4 @@ run_*.sh
 run_format.sh
 run_lint.sh
 run_tests.sh
+tmp/

@@ -133,7 +133,7 @@ func (hsm *HTTPServerManager) handleHealth(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"status":    "healthy",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 		"service":   "pushover-mcp-server",
@@ -152,16 +152,16 @@ func (hsm *HTTPServerManager) handleCapabilities(w http.ResponseWriter, r *http.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	capabilities := map[string]interface{}{
+	capabilities := map[string]any{
 		"name":        "pushover-mcp-server",
 		"version":     version,
 		"description": "MCP server for sending Pushover notifications",
 		"transport":   "http",
-		"tools": []map[string]interface{}{
+		"tools": []map[string]any{
 			{
 				"name":        "send_notification",
 				"description": "Send a notification via Pushover",
-				"parameters": map[string]interface{}{
+				"parameters": map[string]any{
 					"message":  "required - The notification message to send",
 					"title":    "optional - Title for the notification",
 					"priority": "optional - Priority level (-2 to 2)",
@@ -171,7 +171,7 @@ func (hsm *HTTPServerManager) handleCapabilities(w http.ResponseWriter, r *http.
 				},
 			},
 		},
-		"authentication": map[string]interface{}{
+		"authentication": map[string]any{
 			"enabled": hsm.config.AuthEnabled,
 			"type":    "JWT",
 		},
@@ -231,7 +231,7 @@ func (hsm *HTTPServerManager) handleGenerateToken(w http.ResponseWriter, r *http
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"token":      token,
 		"user_id":    request.UserID,
 		"username":   request.Username,

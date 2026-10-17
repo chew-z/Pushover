@@ -100,7 +100,7 @@ func extractTokenFromHeader(r *http.Request) string {
 
 // validateJWT validates a JWT token and returns the claims
 func (am *AuthMiddleware) validateJWT(tokenString string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (any, error) {
 		if token.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -126,16 +126,14 @@ func (am *AuthMiddleware) validateJWT(tokenString string) (*Claims, error) {
 func (am *AuthMiddleware) GenerateJWT(userID, username, role string, expirationHours int) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    "pushover-mcp",
-			Audience:  jwt.ClaimStrings{"pushover-mcp-user"},
-			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(expirationHours) * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now),
-		},
-		UserID:   userID,
-		Username: username,
-		Role:     role,
+		Issuer:    "pushover-mcp",
+		Audience:  jwt.ClaimStrings{"pushover-mcp-user"},
+		ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(expirationHours) * time.Hour)),
+		IssuedAt:  jwt.NewNumericDate(now),
+		NotBefore: jwt.NewNumericDate(now),
+		UserID:    userID,
+		Username:  username,
+		Role:      role,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -145,8 +143,6 @@ func (am *AuthMiddleware) GenerateJWT(userID, username, role string, expirationH
 // Helper functions for extracting authentication information from context
 
 // getUserID retrieves the user ID from the context
-//
-//nolint:unused // Part of complete auth API, may be needed for future features
 func getUserID(ctx context.Context) string {
 	if userID, ok := ctx.Value(contextKeyUserID).(string); ok {
 		return userID
@@ -163,8 +159,6 @@ func getUsername(ctx context.Context) string {
 }
 
 // getRole retrieves the user role from the context
-//
-//nolint:unused // Part of complete auth API, may be needed for future features
 func getRole(ctx context.Context) string {
 	if role, ok := ctx.Value(contextKeyRole).(string); ok {
 		return role

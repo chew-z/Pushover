@@ -405,7 +405,7 @@ func TestHttpServerEndpoints(t *testing.T) {
 	hsm.mcpServer = server.NewStreamableHTTPServer(mcpServer)
 
 	t.Run("Health Endpoint", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil)
 		rr := httptest.NewRecorder()
 		hsm.handleHealth(rr, req)
 
@@ -413,7 +413,7 @@ func TestHttpServerEndpoints(t *testing.T) {
 			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 		}
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 			t.Fatalf("Could not decode response: %v", err)
 		}
@@ -424,7 +424,7 @@ func TestHttpServerEndpoints(t *testing.T) {
 	})
 
 	t.Run("Capabilities Endpoint", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/capabilities", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/capabilities", nil)
 		rr := httptest.NewRecorder()
 		hsm.handleCapabilities(rr, req)
 
@@ -432,7 +432,7 @@ func TestHttpServerEndpoints(t *testing.T) {
 			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 		}
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 			t.Fatalf("Could not decode response: %v", err)
 		}
@@ -440,14 +440,14 @@ func TestHttpServerEndpoints(t *testing.T) {
 		if resp["name"] != "pushover-mcp-server" {
 			t.Errorf("Expected name 'pushover-mcp-server', got '%s'", resp["name"])
 		}
-		if !resp["authentication"].(map[string]interface{})["enabled"].(bool) {
+		if !resp["authentication"].(map[string]any)["enabled"].(bool) {
 			t.Error("Expected authentication to be enabled in capabilities")
 		}
 	})
 
 	t.Run("Generate Token Endpoint", func(t *testing.T) {
 		body := `{"user_id": "test_user", "username": "tester", "role": "admin", "expires_in": 1}`
-		req := httptest.NewRequest(http.MethodPost, "/generate-token", strings.NewReader(body))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/generate-token", strings.NewReader(body))
 		rr := httptest.NewRecorder()
 
 		hsm.handleGenerateToken(rr, req)
@@ -456,7 +456,7 @@ func TestHttpServerEndpoints(t *testing.T) {
 			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 		}
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 			t.Fatalf("Could not decode response: %v", err)
 		}
@@ -471,7 +471,7 @@ func TestHttpServerEndpoints(t *testing.T) {
 	})
 
 	t.Run("Generate Token Endpoint - Bad Method", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/generate-token", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/generate-token", nil)
 		rr := httptest.NewRecorder()
 		hsm.handleGenerateToken(rr, req)
 
@@ -636,7 +636,7 @@ func TestHTTPContextFunc_AuthDisabled(t *testing.T) {
 	am := NewAuthMiddleware("secret", false)
 	fn := am.HTTPContextFunc()
 
-	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/mcp", nil)
 	ctx := fn(context.Background(), req)
 
 	if !isAuthenticated(ctx) {
@@ -651,7 +651,7 @@ func TestHTTPContextFunc_MissingToken(t *testing.T) {
 	am := NewAuthMiddleware("secret", true)
 	fn := am.HTTPContextFunc()
 
-	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/mcp", nil)
 	ctx := fn(context.Background(), req)
 
 	if isAuthenticated(ctx) {
@@ -666,7 +666,7 @@ func TestHTTPContextFunc_InvalidToken(t *testing.T) {
 	am := NewAuthMiddleware("secret", true)
 	fn := am.HTTPContextFunc()
 
-	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer invalid.token.here")
 	ctx := fn(context.Background(), req)
 
@@ -683,7 +683,7 @@ func TestHTTPContextFunc_ValidToken(t *testing.T) {
 	token, _ := am.GenerateJWT("u1", "bob", "admin", 1)
 	fn := am.HTTPContextFunc()
 
-	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	ctx := fn(context.Background(), req)
 
@@ -719,7 +719,7 @@ func TestExtractTokenFromHeader(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 			if tc.header != "" {
 				req.Header.Set("Authorization", tc.header)
 			}
@@ -744,7 +744,7 @@ func TestCorsMiddleware(t *testing.T) {
 	handler := hsm.corsMiddleware(inner)
 
 	t.Run("allowed origin", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 		req.Header.Set("Origin", "https://example.com")
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -755,7 +755,7 @@ func TestCorsMiddleware(t *testing.T) {
 	})
 
 	t.Run("disallowed origin", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 		req.Header.Set("Origin", "https://evil.com")
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -771,7 +771,7 @@ func TestCorsMiddleware(t *testing.T) {
 		hsm := NewHTTPServerManager(config)
 		handler := hsm.corsMiddleware(inner)
 
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 		req.Header.Set("Origin", "https://anywhere.com")
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -782,7 +782,7 @@ func TestCorsMiddleware(t *testing.T) {
 	})
 
 	t.Run("preflight request", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodOptions, "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodOptions, "/", nil)
 		req.Header.Set("Origin", "https://example.com")
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -1057,7 +1057,7 @@ func TestHealthEndpoint_WrongMethod(t *testing.T) {
 	config := newTestMCPConfig()
 	hsm := NewHTTPServerManager(config)
 
-	req := httptest.NewRequest(http.MethodPost, "/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/health", nil)
 	rr := httptest.NewRecorder()
 	hsm.handleHealth(rr, req)
 
@@ -1070,7 +1070,7 @@ func TestCapabilitiesEndpoint_WrongMethod(t *testing.T) {
 	config := newTestMCPConfig()
 	hsm := NewHTTPServerManager(config)
 
-	req := httptest.NewRequest(http.MethodDelete, "/capabilities", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodDelete, "/capabilities", nil)
 	rr := httptest.NewRecorder()
 	hsm.handleCapabilities(rr, req)
 
@@ -1316,7 +1316,7 @@ func TestHandleGenerateToken_InvalidJSON(t *testing.T) {
 	config := newTestMCPConfig()
 	hsm := NewHTTPServerManager(config)
 
-	req := httptest.NewRequest(http.MethodPost, "/generate-token", strings.NewReader("{invalid"))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/generate-token", strings.NewReader("{invalid"))
 	rr := httptest.NewRecorder()
 	hsm.handleGenerateToken(rr, req)
 
@@ -1329,7 +1329,7 @@ func TestHandleGenerateToken_Defaults(t *testing.T) {
 	config := newTestMCPConfig()
 	hsm := NewHTTPServerManager(config)
 
-	req := httptest.NewRequest(http.MethodPost, "/generate-token", strings.NewReader("{}"))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/generate-token", strings.NewReader("{}"))
 	rr := httptest.NewRecorder()
 	hsm.handleGenerateToken(rr, req)
 
@@ -1337,7 +1337,7 @@ func TestHandleGenerateToken_Defaults(t *testing.T) {
 		t.Fatalf("Status = %d, want %d", rr.Code, http.StatusOK)
 	}
 
-	var resp map[string]interface{}
+	var resp map[string]any
 	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 		t.Fatalf("Decode error: %v", err)
 	}

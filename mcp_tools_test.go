@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -24,6 +26,7 @@ func TestHandleSendNotification(t *testing.T) {
 		wantURLTitle    string
 		wantHTML        bool
 		wantMonospace   bool
+		wantTTL         time.Duration
 		wantNoMessage   bool
 	}{
 		{
@@ -85,6 +88,18 @@ func TestHandleSendNotification(t *testing.T) {
 			errorText:     "html and monospace are mutually exclusive",
 			wantNoMessage: true,
 		},
+		{
+			name:        "TTL",
+			arguments:   map[string]any{"message": "test message", "ttl": 3600},
+			wantMessage: "test message",
+			wantTTL:     time.Hour,
+		},
+		{
+			name:        "TTL omitted",
+			arguments:   map[string]any{"message": "test message"},
+			wantMessage: "test message",
+			wantTTL:     0,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -140,7 +155,51 @@ func TestHandleSendNotification(t *testing.T) {
 				if mock.lastMessage.Monospace != tc.wantMonospace {
 					t.Errorf("Monospace = %t, want %t", mock.lastMessage.Monospace, tc.wantMonospace)
 				}
+				if mock.lastMessage.TTL != tc.wantTTL {
+					t.Errorf("TTL = %v, want %v", mock.lastMessage.TTL, tc.wantTTL)
+				}
 			}
 		})
+	}
+}
+
+// TestSendNotificationTTLZeroRejectedBySchema verifies the MCP schema rejects zero TTL before sending.
+func TestSendNotificationTTLZeroRejectedBySchema(t *testing.T) {
+	mock := &MockPushoverClient{}
+	swapNewPushoverClient(t, mock)
+
+	mcpServer := setupMCPServer(newTestMCPConfig())
+	mcpClient, err := client.NewInProcessClient(mcpServer)
+	if err != nil {
+		t.Fatalf("NewInProcessClient() error = %v", err)
+	}
+	ctx := context.Background()
+	if err := mcpClient.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = mcpClient.Close() })
+	if _, err := mcpClient.Initialize(ctx, mcp.InitializeRequest{
+		Params: mcp.InitializeParams{
+			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
+			ClientInfo:      mcp.Implementation{Name: "test-client", Version: "0.0.1"},
+		},
+	}); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+
+	result, err := mcpClient.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name:      "send_notification",
+			Arguments: map[string]any{"message": "test", "ttl": 0},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("CallTool() accepted ttl 0")
+	}
+	if mock.lastMessage != nil {
+		t.Fatalf("mock received a message: %#v", mock.lastMessage)
 	}
 }

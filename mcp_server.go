@@ -44,6 +44,10 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 			mcp.WithBoolean("monospace",
 				mcp.Description("Render the message in a monospace font (mutually exclusive with html)"),
 			),
+			mcp.WithInteger("ttl",
+				mcp.Description("Seconds until the notification is deleted from devices (min 1; ignored for priority 2 emergency messages)"),
+				mcp.Min(1),
+			),
 			mcp.WithInteger("priority",
 				mcp.Description("Priority level (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)"),
 				mcp.Min(-2),
@@ -176,6 +180,9 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 		ExpireTime:  expireTime,
 		RetryTime:   retryTime,
 		DeviceName:  device,
+	}
+	if _, ok := arguments["ttl"]; ok {
+		cliArgs.TTL = request.GetInt("ttl", 0)
 	}
 
 	// Create and send message

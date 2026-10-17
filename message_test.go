@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestCreateMessageURL verifies supplementary URL validation and message fields.
@@ -75,6 +76,38 @@ func TestCreateMessageTextRendering(t *testing.T) {
 			}
 			if message.Monospace != tc.monospace {
 				t.Errorf("Monospace = %t, want %t", message.Monospace, tc.monospace)
+			}
+		})
+	}
+}
+
+// TestCreateMessageTTL verifies notification lifetime validation and conversion to a duration.
+func TestCreateMessageTTL(t *testing.T) {
+	testCases := []struct {
+		name      string
+		ttl       int
+		wantTTL   time.Duration
+		wantError string
+	}{
+		{"TTL set", 60, time.Minute, ""},
+		{"TTL unset", 0, 0, ""},
+		{"negative TTL", -1, 0, "ttl must be at least 1 second"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			message, err := CreateMessage("test", "", Config{}, &CLIArgs{TTL: tc.ttl})
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("CreateMessage() error = %v, want %q", err, tc.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CreateMessage() error = %v", err)
+			}
+			if message.TTL != tc.wantTTL {
+				t.Errorf("TTL = %v, want %v", message.TTL, tc.wantTTL)
 			}
 		})
 	}

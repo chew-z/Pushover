@@ -64,6 +64,9 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 	if cliArgs.HTML && cliArgs.Monospace {
 		return nil, errors.New("html and monospace are mutually exclusive")
 	}
+	if cliArgs.TTL < 0 {
+		return nil, errors.New("ttl must be at least 1 second")
+	}
 	if utf8.RuneCountInString(cliArgs.URL) > 512 {
 		return nil, errors.New("url must be at most 512 characters")
 	}
@@ -119,6 +122,9 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 	message.URLTitle = cliArgs.URLTitle
 	message.HTML = cliArgs.HTML
 	message.Monospace = cliArgs.Monospace
+	if cliArgs.TTL > 0 {
+		message.TTL = time.Duration(cliArgs.TTL) * time.Second
+	}
 
 	// Set timestamp to now
 	message.Timestamp = time.Now().Unix()

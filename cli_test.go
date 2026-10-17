@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestRunPriorityOverride verifies that explicit CLI priority zero overrides the environment default.
@@ -156,6 +157,52 @@ func TestRunTextRendering(t *testing.T) {
 			}
 			if mock.lastMessage.Monospace != tc.monospace {
 				t.Errorf("Monospace = %t, want %t", mock.lastMessage.Monospace, tc.monospace)
+			}
+		})
+	}
+}
+
+// TestRunTTL verifies CLI TTL propagation and rejection of negative values.
+func TestRunTTL(t *testing.T) {
+	testCases := []struct {
+		name      string
+		args      []string
+		wantError string
+		wantTTL   time.Duration
+	}{
+		{
+			name:    "TTL set",
+			args:    []string{"pushover", "-m", "hi", "-ttl", "120"},
+			wantTTL: 2 * time.Minute,
+		},
+		{
+			name:      "negative TTL",
+			args:      []string{"pushover", "-m", "hi", "-ttl", "-5"},
+			wantError: "ttl must be at least 1 second",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := &MockPushoverClient{}
+			err := Run(tc.args, mock)
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("Run() error = %v, want text %q", err, tc.wantError)
+				}
+				if mock.lastMessage != nil {
+					t.Fatalf("mock received a message: %#v", mock.lastMessage)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if mock.lastMessage == nil {
+				t.Fatal("Run() did not send a message")
+			}
+			if mock.lastMessage.TTL != tc.wantTTL {
+				t.Errorf("TTL = %v, want %v", mock.lastMessage.TTL, tc.wantTTL)
 			}
 		})
 	}

@@ -1,29 +1,48 @@
+# OS
 .DS_Store
 
+# Build output
 bin/**
+coverage.out
 
+# Environment
+.env
+
+# Module checksums are deliberately tracked; see docs/STATUS.md.
 !go.sum
 
-.env
-.markdownlint.yaml
+# Generated project noise
+CONTAINER.md
+container-run.toml
+*.scaffold
+.vscode/
+.task/
 
-AGENTS.md
+# Tool-owned docs and notes that do not travel with Git
 CODANNA.md
-GOLANG.md
 GODOC.md
 LSP.md
 
-.claude/
+# Assistant folders: everything ignored except project-authored rules
+.claude/*
+!.claude/rules/
 .codex/
-.qoder/
+.qoder/*
+!.qoder/rules/
 .mcp.json
+
+# Codanna index and ignore file
 .codanna/**
 .codannaignore
 # link to global
 .fastembed_cache
 
+# Reports and retired material are gitignored by design
+docs/reports/
+docs/retired/
+
+# Scaffold-owned runner scripts
 run_*.sh
-!run_release.sh
 run_format.sh
 run_lint.sh
 run_tests.sh

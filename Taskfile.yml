@@ -1,58 +1,167 @@
+# Taskfile is Pushover's task-runner configuration — https://taskfile.dev
+# Install the runner: brew install go-task
+# List available tasks: task --list
 version: "3"
 
 vars:
-  BINARY_NAME: pushover
-  BUILD_DIR: bin
+  BINARY: pushover
+  BIN_DIR: bin
+  # Use `.` for a single-package main.
+  MAIN_PKG: .
+  BINARY_PATH: "{{.BIN_DIR}}/{{.BINARY}}"
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  # Set REPO_NWO if the repository moves.
+  REPO_NWO: chew-z/Pushover
+  # Override with: task release RELEASE_TAG=v1.2.3
+  RELEASE_TAG: ""
+
+env:
+  # Flip this if the project needs cgo.
+  CGO_ENABLED: "0"
 
 tasks:
   default:
-    desc: Show available tasks
+    desc: List all available tasks
     cmds:
       - task --list
+    silent: true
 
   build:
-    desc: Build the binary with version injection
+    desc: Build the binary into bin/ with the version injected
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - "{{.BINARY_PATH}}"
     cmds:
-      - mkdir -p {{.BUILD_DIR}}
-      - go build -ldflags "-X main.version={{.VERSION}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} .
+      # -X requires main.version to stay a string variable, not a const.
+      - go build -ldflags "-X main.version={{.VERSION}}" -o {{.BINARY_PATH}} {{.MAIN_PKG}}
+
+  run:
+    desc: Build and run the binary
+    deps: [build]
+    cmds:
+      - "{{.BINARY_PATH}} {{.CLI_ARGS}}"
 
   test:
-    desc: Run tests with coverage
+    desc: Run the full test suite with verbose output
     cmds:
-      - go test -v -cover ./...
+      - go test -v ./...
 
-  lint:
-    desc: Run golangci-lint
+  test:short:
+    desc: Run tests without verbose output
     cmds:
-      - golangci-lint run
+      - go test ./...
+
+  cover:
+    desc: Run tests with coverage and open the HTML report
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out
 
   fmt:
-    desc: Format code
+    desc: Format all Go files with gofmt
     cmds:
       - gofmt -w .
 
-  clean:
-    desc: Remove build artifacts
+  fmt:check:
+    desc: Fail if any Go file is not gofmt-formatted
     cmds:
-      - rm -rf {{.BUILD_DIR}}
+      - |
+        unformatted=$(gofmt -l .)
+        if [ -n "$unformatted" ]; then
+          echo "These files need gofmt:"
+          echo "$unformatted"
+          exit 1
+        fi
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Run golangci-lint and auto-fix where possible
+    cmds:
+      - golangci-lint run --fix ./...
+
+  lint:ci:
+    desc: Run golangci-lint without auto-fixing
+    cmds:
+      - golangci-lint run ./...
+
+  lint:md:
+    desc: Lint Markdown, including rule files
+    cmds:
+      - markdownlint-cli2 "**/*.md"
+
+  tidy:
+    desc: Tidy and verify module dependencies
+    cmds:
+      - go mod tidy
+      - go mod verify
+
+  deps:update:
+    desc: Update dependencies, then tidy
+    cmds:
+      - go get -u ./...
+      - go mod tidy
+
+  check:
+    desc: Run the quality gate
+    cmds:
+      - task: fmt:check
+      - task: vet
+      - task: lint:ci
+      - task: test:short
 
   install:
     desc: Install binary to /usr/local/bin
     deps: [build]
     cmds:
-      - sudo cp {{.BUILD_DIR}}/{{.BINARY_NAME}} /usr/local/bin/
-
-  check:
-    desc: Run full local gate (fmt + lint + test + build)
-    cmds:
-      - task: fmt
-      - task: lint
-      - task: test
-      - task: build
+      - sudo cp {{.BINARY_PATH}} /usr/local/bin/{{.BINARY}}
 
   release:
-    desc: Create a GitHub release
+    desc: Build, tag, and publish a GitHub release
+    vars:
+      LATEST_TAG:
+        sh: git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0
+      NEW_TAG:
+        sh: |
+          if [ -n "{{.RELEASE_TAG}}" ]; then
+            printf '%s' "{{.RELEASE_TAG}}"
+            exit 0
+          fi
+          version="{{.LATEST_TAG}}"
+          version="${version#v}"
+          major="${version%%.*}"
+          rest="${version#*.}"
+          minor="${rest%%.*}"
+          patch="${rest#*.}"
+          printf 'v%s.%s.%s' "$major" "$minor" "$((patch + 1))"
+    prompt: "Release {{.NEW_TAG}} (latest: {{.LATEST_TAG}})?"
     cmds:
-      - ./run_release.sh
+      - gh auth status
+      - |
+        if ! git diff-index --quiet HEAD --; then
+          echo "Error: uncommitted changes detected. Aborting."
+          exit 1
+        fi
+      - task: check
+      - go build -ldflags "-X main.version={{.NEW_TAG}}" -o {{.BINARY_PATH}} {{.MAIN_PKG}}
+      - git tag -a {{.NEW_TAG}} -m "Release {{.NEW_TAG}}"
+      - git push origin {{.NEW_TAG}}
+      - |
+        if [ "$(gh repo view {{.REPO_NWO}} --json hasDiscussionsEnabled --jq .hasDiscussionsEnabled)" = "true" ]; then
+          gh release create {{.NEW_TAG}} {{.BINARY_PATH}} --title={{.NEW_TAG}} --generate-notes --latest \
+            --discussion-category=Releases --verify-tag
+        else
+          gh release create {{.NEW_TAG}} {{.BINARY_PATH}} --title={{.NEW_TAG}} --generate-notes --latest --verify-tag
+        fi
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -f {{.BINARY_PATH}} coverage.out

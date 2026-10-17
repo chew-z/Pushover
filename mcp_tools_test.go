@@ -20,6 +20,9 @@ func TestHandleSendNotification(t *testing.T) {
 		errorText       string
 		wantMessage     string
 		wantPriority    int
+		wantURL         string
+		wantURLTitle    string
+		wantNoMessage   bool
 	}{
 		{
 			name:        "successful send",
@@ -53,6 +56,20 @@ func TestHandleSendNotification(t *testing.T) {
 			wantMessage:     "test message",
 			wantPriority:    -1,
 		},
+		{
+			name:         "URL and URL title",
+			arguments:    map[string]any{"message": "test message", "url": "https://example.com", "url_title": "Example"},
+			wantMessage:  "test message",
+			wantURL:      "https://example.com",
+			wantURLTitle: "Example",
+		},
+		{
+			name:          "URL title requires URL",
+			arguments:     map[string]any{"message": "test message", "url_title": "Example"},
+			wantError:     true,
+			errorText:     "url_title requires url",
+			wantNoMessage: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -80,6 +97,12 @@ func TestHandleSendNotification(t *testing.T) {
 			if tc.errorText != "" && !strings.Contains(fmt.Sprint(result), tc.errorText) {
 				t.Fatalf("result = %v, want text %q", result, tc.errorText)
 			}
+			if tc.wantNoMessage {
+				if mock.lastMessage != nil {
+					t.Fatalf("mock received a message: %#v", mock.lastMessage)
+				}
+				return
+			}
 			if tc.wantMessage != "" {
 				if mock.lastMessage == nil {
 					t.Fatal("mock did not receive a message")
@@ -89,6 +112,12 @@ func TestHandleSendNotification(t *testing.T) {
 				}
 				if mock.lastMessage.Priority != tc.wantPriority {
 					t.Errorf("priority = %d, want %d", mock.lastMessage.Priority, tc.wantPriority)
+				}
+				if mock.lastMessage.URL != tc.wantURL {
+					t.Errorf("URL = %q, want %q", mock.lastMessage.URL, tc.wantURL)
+				}
+				if mock.lastMessage.URLTitle != tc.wantURLTitle {
+					t.Errorf("URLTitle = %q, want %q", mock.lastMessage.URLTitle, tc.wantURLTitle)
 				}
 			}
 		})

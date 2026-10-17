@@ -90,7 +90,10 @@ func TestCreateMessage_UseDefaultTitle(t *testing.T) {
 		Title:   "", // Empty title should use default
 	}
 
-	msg := CreateMessage("Test message", "", config, cliArgs)
+	msg, err := CreateMessage("Test message", "", config, cliArgs)
+	if err != nil {
+		t.Fatalf("CreateMessage() error = %v", err)
+	}
 
 	if msg.Title != "Default Title" {
 		t.Errorf("Expected title 'Default Title', got '%s'", msg.Title)
@@ -112,7 +115,10 @@ func TestCreateMessage_CLIOverridesConfig(t *testing.T) {
 		ExpireTime:  600,
 	}
 
-	msg := CreateMessage("Test message", "Test title", config, cliArgs)
+	msg, err := CreateMessage("Test message", "Test title", config, cliArgs)
+	if err != nil {
+		t.Fatalf("CreateMessage() error = %v", err)
+	}
 
 	if msg.Priority != int(pushover.PriorityHigh) {
 		t.Errorf("Expected priority %d, got %d", pushover.PriorityHigh, msg.Priority)
@@ -536,7 +542,10 @@ func TestCreateMessage_DeviceAndRetry(t *testing.T) {
 		RetryTime:  120,
 	}
 
-	msg := CreateMessage("test", "", config, cliArgs)
+	msg, err := CreateMessage("test", "", config, cliArgs)
+	if err != nil {
+		t.Fatalf("CreateMessage() error = %v", err)
+	}
 
 	if msg.DeviceName != "my-phone" {
 		t.Errorf("DeviceName = %q, want %q", msg.DeviceName, "my-phone")
@@ -554,7 +563,10 @@ func TestCreateMessage_ConfigFallbacks(t *testing.T) {
 	}
 	cliArgs := &CLIArgs{Message: "test"}
 
-	msg := CreateMessage("test", "", config, cliArgs)
+	msg, err := CreateMessage("test", "", config, cliArgs)
+	if err != nil {
+		t.Fatalf("CreateMessage() error = %v", err)
+	}
 
 	if msg.DeviceName != "config-device" {
 		t.Errorf("DeviceName = %q, want %q", msg.DeviceName, "config-device")

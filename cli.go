@@ -16,6 +16,10 @@ type CLIArgs struct {
 	Priority int
 	// PrioritySet is true when the caller explicitly supplied a priority.
 	PrioritySet bool
+	// URL is the supplementary URL shown with the notification.
+	URL string
+	// URLTitle is the title shown for URL.
+	URLTitle    string
 	Sound       string
 	ExpireTime  int
 	RetryTime   int
@@ -58,6 +62,10 @@ func showMainHelp(progName string) {
 	fmt.Fprintln(os.Stdout, "        Message title")
 	fmt.Fprintln(os.Stdout, "  -title string")
 	fmt.Fprintln(os.Stdout, "        Message title")
+	fmt.Fprintln(os.Stdout, "  -url string")
+	fmt.Fprintln(os.Stdout, "        Supplementary URL shown with the notification")
+	fmt.Fprintln(os.Stdout, "  -url-title string")
+	fmt.Fprintln(os.Stdout, "        Title for the supplementary URL")
 	fmt.Fprintln(os.Stdout, "  -version")
 	fmt.Fprintln(os.Stdout, "        Show version")
 	fmt.Fprintln(os.Stdout, "\nEnvironment Variables:")
@@ -80,6 +88,8 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 	fs.StringVar(&cliArgs.Message, "message", "", "Message to send (required)")
 	fs.StringVar(&cliArgs.Title, "t", "", "Message title")
 	fs.StringVar(&cliArgs.Title, "title", "", "Message title")
+	fs.StringVar(&cliArgs.URL, "url", "", "Supplementary URL shown with the notification")
+	fs.StringVar(&cliArgs.URLTitle, "url-title", "", "Title for the supplementary URL")
 	fs.IntVar(&cliArgs.Priority, "p", 0, "Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)")
 	fs.IntVar(&cliArgs.Priority, "priority", 0, "Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)")
 	fs.StringVar(&cliArgs.Sound, "s", "", "Sound name")
@@ -163,7 +173,10 @@ func Run(args []string, client PushoverClient) error {
 	}
 
 	// Create the message
-	pushMessage := CreateMessage(cliArgs.Message, cliArgs.Title, config, cliArgs)
+	pushMessage, err := CreateMessage(cliArgs.Message, cliArgs.Title, config, cliArgs)
+	if err != nil {
+		return fmt.Errorf("invalid notification: %w", err)
+	}
 
 	// Send the notification
 	if err := SendNotification(client, pushMessage, recipient); err != nil {

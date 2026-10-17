@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestRunPriorityOverride verifies that explicit CLI priority zero overrides the environment default.
 func TestRunPriorityOverride(t *testing.T) {
@@ -56,6 +59,57 @@ func TestParseArgsPrioritySet(t *testing.T) {
 			}
 			if args.PrioritySet != tc.wantPrioritySet {
 				t.Errorf("PrioritySet = %t, want %t", args.PrioritySet, tc.wantPrioritySet)
+			}
+		})
+	}
+}
+
+// TestRunURL verifies URL flags reach the message and invalid URL title input does not send.
+func TestRunURL(t *testing.T) {
+	testCases := []struct {
+		name         string
+		args         []string
+		wantError    string
+		wantURL      string
+		wantURLTitle string
+	}{
+		{
+			name:         "URL and title",
+			args:         []string{"pushover", "-m", "hi", "-url", "https://x", "-url-title", "X"},
+			wantURL:      "https://x",
+			wantURLTitle: "X",
+		},
+		{
+			name:      "URL title without URL",
+			args:      []string{"pushover", "-m", "hi", "-url-title", "X"},
+			wantError: "url_title requires url",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := &MockPushoverClient{}
+			err := Run(tc.args, mock)
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("Run() error = %v, want text %q", err, tc.wantError)
+				}
+				if mock.lastMessage != nil {
+					t.Fatalf("mock received a message: %#v", mock.lastMessage)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if mock.lastMessage == nil {
+				t.Fatal("Run() did not send a message")
+			}
+			if mock.lastMessage.URL != tc.wantURL {
+				t.Errorf("URL = %q, want %q", mock.lastMessage.URL, tc.wantURL)
+			}
+			if mock.lastMessage.URLTitle != tc.wantURLTitle {
+				t.Errorf("URLTitle = %q, want %q", mock.lastMessage.URLTitle, tc.wantURLTitle)
 			}
 		})
 	}

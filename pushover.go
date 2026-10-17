@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gregdel/pushover"
 )
@@ -58,8 +59,18 @@ func NewPushoverClient(config Config) (PushoverClient, *pushover.Recipient, erro
 // newPushoverClient creates a Pushover client and lets tests substitute a mock.
 var newPushoverClient = NewPushoverClient
 
-// CreateMessage creates a Pushover message, giving an explicitly supplied CLI priority precedence over configuration.
-func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) *pushover.Message {
+// CreateMessage creates a Pushover message and returns an error for invalid input.
+func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushover.Message, error) {
+	if utf8.RuneCountInString(cliArgs.URL) > 512 {
+		return nil, errors.New("url must be at most 512 characters")
+	}
+	if utf8.RuneCountInString(cliArgs.URLTitle) > 100 {
+		return nil, errors.New("url_title must be at most 100 characters")
+	}
+	if cliArgs.URLTitle != "" && cliArgs.URL == "" {
+		return nil, errors.New("url_title requires url")
+	}
+
 	// Use default title if none provided
 	if title == "" && config.DefaultTitle != "" {
 		title = config.DefaultTitle
@@ -101,11 +112,13 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) *pushove
 		deviceName = cliArgs.DeviceName
 	}
 	message.DeviceName = deviceName
+	message.URL = cliArgs.URL
+	message.URLTitle = cliArgs.URLTitle
 
 	// Set timestamp to now
 	message.Timestamp = time.Now().Unix()
 
-	return message
+	return message, nil
 }
 
 // SendNotification sends a notification using the provided client

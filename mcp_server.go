@@ -30,6 +30,14 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 			mcp.WithString("title",
 				mcp.Description("Optional title for the notification"),
 			),
+			mcp.WithString("url",
+				mcp.Description("Supplementary URL shown with the notification (max 512 characters)"),
+				mcp.MaxLength(512),
+			),
+			mcp.WithString("url_title",
+				mcp.Description("Title for the supplementary URL (max 100 characters; requires url)"),
+				mcp.MaxLength(100),
+			),
 			mcp.WithInteger("priority",
 				mcp.Description("Priority level (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)"),
 				mcp.Min(-2),
@@ -124,6 +132,8 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	// Extract optional parameters
 	arguments := request.GetArguments()
 	title := request.GetString("title", "")
+	url := request.GetString("url", "")
+	urlTitle := request.GetString("url_title", "")
 	priority := 0
 	prioritySet := false
 	if _, ok := arguments["priority"]; ok {
@@ -148,6 +158,8 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	cliArgs := &CLIArgs{
 		Message:     message,
 		Title:       title,
+		URL:         url,
+		URLTitle:    urlTitle,
 		Priority:    priority,
 		PrioritySet: prioritySet,
 		Sound:       sound,
@@ -157,7 +169,10 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	}
 
 	// Create and send message
-	pushMessage := CreateMessage(message, title, legacyConfig, cliArgs)
+	pushMessage, err := CreateMessage(message, title, legacyConfig, cliArgs)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid notification: %v", err)), nil
+	}
 
 	response, err := client.SendMessage(pushMessage, recipient)
 	if err != nil {

@@ -44,13 +44,21 @@ would complete that; low priority.
 
 ## 7. A `send_glance` tool
 
-Pushover Glances put standing state on the Apple Watch face and the lock screen without a notification:
-the attention level, the open position and its P&L, the distance to the next level, the loss line used.
-Endpoint `https://api.pushover.net/1/glances.json`, same `token` and `user`; fields `title` (100 characters),
-`text` (100), `subtext` (100), `count` (integer), `percent` (0 to 100), optional `device`.
-Verify the limits against `pushover.net/api/glances` before coding; `gregdel/pushover` does not wrap Glances,
-so this is a direct POST. Pushover asks that glances be updated sparingly (the watch polls); the caller will
-update at a few fixed points a day, never per tick.
+Pushover Glances put standing state on the Apple Watch face without a notification: the attention level,
+the open position and its P&L, the distance to the next level, the loss line used.
+Verified against `pushover.net/api/glances` on 2026-10-17:
+
+- `POST https://api.pushover.net/1/glances.json` with `token`, `user`, optional `device`, and at least one
+  data field: `title` (100 characters), `text` (100), `subtext` (100), `count` (integer, may be negative),
+  `percent` (integer 0 to 100). An empty string clears a field. Success is `status: 1` with a `request` id;
+  a 400 carries `status: 0` and an `errors` array.
+- Pushover does not throttle; the caller must. Apple Watch wants at least 20 minutes between updates and
+  watchOS processes at most 50 a day, then nothing until the overnight reset. Updates can take up to
+  10 minutes to appear. The tool should refuse, or at least warn, when called under 20 minutes after the
+  last call, and should count the day's calls in its result.
+- Apple Watch only; the widget has to be registered on the device (dashboard, "Your Devices").
+
+`gregdel/pushover` does not wrap Glances, so this is a direct POST with the same token and user key.
 
 ## Fixes seen in passing
 

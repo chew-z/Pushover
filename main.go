@@ -8,7 +8,9 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 )
 
-const version = "1.0.0"
+// version is a variable, not a constant, so the Taskfile and release script
+// can inject the build version with -ldflags "-X main.version=...".
+var version = "1.0.0"
 
 // hasSubcommand checks if the first argument is a subcommand
 func hasSubcommand(args []string) (string, bool) {
@@ -27,16 +29,13 @@ func hasSubcommand(args []string) (string, bool) {
 
 func main() {
 	// Check for subcommands first
-	if subcommand, hasSubcmd := hasSubcommand(os.Args); hasSubcmd {
-		switch subcommand {
-		case "mcp":
-			// Parse MCP subcommand arguments
-			if err := parseMCPArgs(os.Args); err != nil {
-				slog.Error("MCP server failed", "error", err)
-				os.Exit(1)
-			}
-			return
+	if subcommand, hasSubcmd := hasSubcommand(os.Args); hasSubcmd && subcommand == "mcp" {
+		// Parse MCP subcommand arguments
+		if err := parseMCPArgs(os.Args); err != nil {
+			slog.Error("MCP server failed", "error", err)
+			os.Exit(1)
 		}
+		return
 	}
 
 	// Default CLI mode

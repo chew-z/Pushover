@@ -122,8 +122,14 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	}
 
 	// Extract optional parameters
+	arguments := request.GetArguments()
 	title := request.GetString("title", "")
-	priority := request.GetInt("priority", config.PushoverDefaultPriority)
+	priority := 0
+	prioritySet := false
+	if _, ok := arguments["priority"]; ok {
+		priority = request.GetInt("priority", 0)
+		prioritySet = true
+	}
 	device := request.GetString("device", "")
 	sound := request.GetString("sound", "")
 	expireTime := request.GetInt("expire", config.PushoverDefaultExpire)
@@ -133,20 +139,21 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	legacyConfig := config.ToLegacyConfig()
 
 	// Create Pushover client
-	client, recipient, err := NewPushoverClient(legacyConfig)
+	client, recipient, err := newPushoverClient(legacyConfig)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to create Pushover client: %v", err)), nil
 	}
 
 	// Create CLI args structure for message creation
 	cliArgs := &CLIArgs{
-		Message:    message,
-		Title:      title,
-		Priority:   priority,
-		Sound:      sound,
-		ExpireTime: expireTime,
-		RetryTime:  retryTime,
-		DeviceName: device,
+		Message:     message,
+		Title:       title,
+		Priority:    priority,
+		PrioritySet: prioritySet,
+		Sound:       sound,
+		ExpireTime:  expireTime,
+		RetryTime:   retryTime,
+		DeviceName:  device,
 	}
 
 	// Create and send message

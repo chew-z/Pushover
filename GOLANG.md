@@ -59,9 +59,9 @@ Tests use the standard library and a local mock implementing `PushoverClient`; t
 
 - **Flat package.** All Go files stay in one `package main` at the repository root, split by concern.
   Introduce `cmd/` and `internal/` only if real subsystems appear.
-- **CLI over environment over defaults.** `CreateMessage` applies this order (`pushover.go:55`).
-  Gotcha: a zero-valued flag does not override a non-zero environment value, so `-p 0` cannot force
-  normal priority when `PUSHOVER_PRIORITY` is set.
+- **CLI over environment over defaults.** `CreateMessage` applies this order (`pushover.go:61`).
+  `CLIArgs.PrioritySet` preserves whether a priority was supplied, so an explicit priority, including `-p 0`,
+  overrides `PUSHOVER_PRIORITY`.
 - **MCP input constraints belong in the tool schema.** `server.WithInputSchemaValidation()` is enabled
   (`mcp_server.go:18`); put type, range and length limits in `mcp.With*` helpers, not in the handler.
 - **STDIO logging goes to stderr.** JSON `slog` writes to stderr (`logging.go:27`) because stdout carries

@@ -11,9 +11,11 @@ import (
 
 // CLIArgs holds parsed command-line arguments
 type CLIArgs struct {
-	Message     string
-	Title       string
-	Priority    int
+	Message  string
+	Title    string
+	Priority int
+	// PrioritySet is true when the caller explicitly supplied a priority.
+	PrioritySet bool
 	Sound       string
 	ExpireTime  int
 	RetryTime   int
@@ -100,6 +102,11 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 	if err := fs.Parse(args[1:]); err != nil {
 		return nil, err
 	}
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "p" || f.Name == "priority" {
+			cliArgs.PrioritySet = true
+		}
+	})
 
 	if cliArgs.ShowHelp {
 		fs.Usage()
@@ -146,7 +153,7 @@ func Run(args []string, client PushoverClient) error {
 	// Create Pushover client if not provided (for testing)
 	var recipient *pushover.Recipient
 	if client == nil {
-		client, recipient, err = NewPushoverClient(config)
+		client, recipient, err = newPushoverClient(config)
 		if err != nil {
 			return fmt.Errorf("failed to create Pushover client: %w", err)
 		}

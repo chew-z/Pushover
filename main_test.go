@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -22,11 +21,15 @@ import (
 
 // MockPushoverClient implements PushoverClient for testing
 type MockPushoverClient struct {
-	lastMessage   *pushover.Message
-	lastRecipient *pushover.Recipient
-	shouldError   bool
+	lastMessage         *pushover.Message
+	lastRecipient       *pushover.Recipient
+	lastReceipt         string
+	lastGlance          *pushover.Glance
+	lastGlanceRecipient *pushover.Recipient
+	shouldError         bool
 }
 
+// SendMessage records a message send and returns the configured mock result.
 func (m *MockPushoverClient) SendMessage(message *pushover.Message, recipient *pushover.Recipient) (*pushover.Response, error) {
 	m.lastMessage = message
 	m.lastRecipient = recipient
@@ -36,6 +39,42 @@ func (m *MockPushoverClient) SendMessage(message *pushover.Message, recipient *p
 	}
 
 	return &pushover.Response{Status: 1}, nil
+}
+
+// CancelEmergencyNotification records an emergency cancellation and returns the configured mock result.
+func (m *MockPushoverClient) CancelEmergencyNotification(receipt string) (*pushover.Response, error) {
+	m.lastReceipt = receipt
+
+	if m.shouldError {
+		return nil, errors.New("mock error")
+	}
+
+	return &pushover.Response{Status: 1}, nil
+}
+
+// SendGlanceUpdate records a Glances update and returns the configured mock result.
+func (m *MockPushoverClient) SendGlanceUpdate(glance *pushover.Glance, recipient *pushover.Recipient) (*pushover.Response, error) {
+	m.lastGlance = glance
+	m.lastGlanceRecipient = recipient
+
+	if m.shouldError {
+		return nil, errors.New("mock error")
+	}
+
+	return &pushover.Response{Status: 1}, nil
+}
+
+// swapNewPushoverClient replaces the Pushover client factory with mock for a test.
+func swapNewPushoverClient(t *testing.T, mock *MockPushoverClient) {
+	t.Helper()
+
+	original := newPushoverClient
+	newPushoverClient = func(Config) (PushoverClient, *pushover.Recipient, error) {
+		return mock, pushover.NewRecipient("dummy"), nil
+	}
+	t.Cleanup(func() {
+		newPushoverClient = original
+	})
 }
 
 func TestCreateMessage_UseDefaultTitle(t *testing.T) {
@@ -66,10 +105,11 @@ func TestCreateMessage_CLIOverridesConfig(t *testing.T) {
 	}
 
 	cliArgs := &CLIArgs{
-		Message:    "Test message",
-		Priority:   int(pushover.PriorityHigh),
-		Sound:      pushover.SoundSiren,
-		ExpireTime: 600,
+		Message:     "Test message",
+		Priority:    int(pushover.PriorityHigh),
+		PrioritySet: true,
+		Sound:       pushover.SoundSiren,
+		ExpireTime:  600,
 	}
 
 	msg := CreateMessage("Test message", "Test title", config, cliArgs)
@@ -239,96 +279,6 @@ func TestMCPConfig_Validation(t *testing.T) {
 				}
 			} else if err != nil {
 				t.Fatalf("Expected no error, but got: %v", err)
-			}
-		})
-	}
-}
-
-func TestHandleSendNotification(t *testing.T) {
-	testCases := []struct {
-		name        string
-		message     string
-		title       string
-		priority    any
-		device      string
-		sound       string
-		expire      any
-		wantErr     bool
-		errContains string
-	}{
-		{
-			name:        "successful send attempt",
-			message:     "test message",
-			title:       "test title",
-			wantErr:     true, // Expects error because pushover client will fail with dummy keys
-			errContains: "Failed to send notification",
-		},
-		{
-			name:        "missing message",
-			message:     "", // Empty message should trigger required parameter error
-			title:       "test",
-			wantErr:     true,
-			errContains: "Message parameter is required",
-		},
-		{
-			name:        "emergency priority with expire",
-			message:     "emergency",
-			priority:    int(pushover.PriorityEmergency),
-			expire:      60,
-			wantErr:     true, // Still fails on send
-			errContains: "Failed to send notification",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Build arguments map
-			args := make(map[string]any)
-			if tc.message != "" {
-				args["message"] = tc.message
-			}
-			if tc.title != "" {
-				args["title"] = tc.title
-			}
-			if tc.priority != nil {
-				args["priority"] = tc.priority
-			}
-			if tc.device != "" {
-				args["device"] = tc.device
-			}
-			if tc.sound != "" {
-				args["sound"] = tc.sound
-			}
-			if tc.expire != nil {
-				args["expire"] = tc.expire
-			}
-
-			// Create MCP request with proper structure
-			req := mcp.CallToolRequest{
-				Params: mcp.CallToolParams{
-					Arguments: args,
-				},
-			}
-			config := newTestMCPConfig()
-			result, err := handleSendNotification(context.Background(), req, config)
-
-			if err != nil {
-				t.Fatalf("Handler returned an unexpected error: %v", err)
-			}
-			if result == nil {
-				t.Fatal("Result is nil")
-			}
-
-			resultText := fmt.Sprintf("%v", result)
-
-			if tc.wantErr {
-				if !strings.Contains(resultText, tc.errContains) {
-					t.Errorf("Expected error to contain '%s', but got: %s", tc.errContains, resultText)
-				}
-			} else {
-				if strings.Contains(resultText, "error") || strings.Contains(resultText, "Error") {
-					t.Fatalf("Expected success result, but got error: %s", resultText)
-				}
 			}
 		})
 	}

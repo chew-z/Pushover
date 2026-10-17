@@ -51,3 +51,36 @@ func TestMCPConfigValidationExistingRules(t *testing.T) {
 		t.Fatal("invalid priority accepted")
 	}
 }
+
+// TestPriorityZeroConfigParsing verifies that both configuration paths accept priority zero.
+func TestPriorityZeroConfigParsing(t *testing.T) {
+	t.Run("LoadConfig defaults to low priority when unset", func(t *testing.T) {
+		t.Setenv("PUSHOVER_PRIORITY", "")
+		if priority := LoadConfig().Priority; priority != -1 {
+			t.Errorf("LoadConfig().Priority = %d, want -1", priority)
+		}
+	})
+
+	t.Run("LoadConfig accepts explicit zero", func(t *testing.T) {
+		t.Setenv("PUSHOVER_PRIORITY", "0")
+		if priority := LoadConfig().Priority; priority != 0 {
+			t.Errorf("LoadConfig().Priority = %d, want 0", priority)
+		}
+	})
+
+	t.Run("NewMCPConfig accepts explicit zero", func(t *testing.T) {
+		t.Setenv("APP_KEY", "app-key")
+		t.Setenv("RECIPIENT_KEY", "recipient-key")
+		t.Setenv("PUSHOVER_AUTH_ENABLED", "false")
+		t.Setenv("PUSHOVER_MCP_OAUTH", "false")
+		t.Setenv("PUSHOVER_PRIORITY", "0")
+
+		config, err := NewMCPConfig(false)
+		if err != nil {
+			t.Fatalf("NewMCPConfig() error = %v", err)
+		}
+		if config.PushoverDefaultPriority != 0 {
+			t.Errorf("PushoverDefaultPriority = %d, want 0", config.PushoverDefaultPriority)
+		}
+	})
+}

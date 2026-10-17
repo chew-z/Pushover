@@ -10,6 +10,8 @@ import (
 // PushoverClient interface defines the methods we need from a Pushover client
 type PushoverClient interface {
 	SendMessage(message *pushover.Message, recipient *pushover.Recipient) (*pushover.Response, error)
+	CancelEmergencyNotification(receipt string) (*pushover.Response, error)
+	SendGlanceUpdate(glance *pushover.Glance, recipient *pushover.Recipient) (*pushover.Response, error)
 }
 
 // RealPushoverApp wraps a Pushover app to implement our PushoverClient interface
@@ -20,6 +22,16 @@ type RealPushoverApp struct {
 // SendMessage implements the PushoverClient interface
 func (r *RealPushoverApp) SendMessage(message *pushover.Message, recipient *pushover.Recipient) (*pushover.Response, error) {
 	return r.app.SendMessage(message, recipient)
+}
+
+// CancelEmergencyNotification cancels the emergency notification identified by receipt.
+func (r *RealPushoverApp) CancelEmergencyNotification(receipt string) (*pushover.Response, error) {
+	return r.app.CancelEmergencyNotification(receipt)
+}
+
+// SendGlanceUpdate sends a Glances update to the recipient.
+func (r *RealPushoverApp) SendGlanceUpdate(glance *pushover.Glance, recipient *pushover.Recipient) (*pushover.Response, error) {
+	return r.app.SendGlanceUpdate(glance, recipient)
 }
 
 // NewPushoverClient creates a new Pushover client with the given configuration
@@ -43,7 +55,10 @@ func NewPushoverClient(config Config) (PushoverClient, *pushover.Recipient, erro
 	return &RealPushoverApp{app: app}, recipient, nil
 }
 
-// CreateMessage creates a new Pushover message with the given parameters
+// newPushoverClient creates a Pushover client and lets tests substitute a mock.
+var newPushoverClient = NewPushoverClient
+
+// CreateMessage creates a Pushover message, giving an explicitly supplied CLI priority precedence over configuration.
 func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) *pushover.Message {
 	// Use default title if none provided
 	if title == "" && config.DefaultTitle != "" {
@@ -52,9 +67,9 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) *pushove
 
 	message := pushover.NewMessageWithTitle(text, title)
 
-	// Set priority (CLI args override config)
+	// Set priority when the caller explicitly supplied one, including zero.
 	priority := config.Priority
-	if cliArgs.Priority != 0 {
+	if cliArgs.PrioritySet {
 		priority = cliArgs.Priority
 	}
 	message.Priority = priority

@@ -84,7 +84,7 @@ const (
 func LoadConfig() Config {
 	// Parse priority with error handling, default to PriorityLow
 	priority := int(pushover.PriorityLow)
-	if p, err := strconv.Atoi(os.Getenv("PUSHOVER_PRIORITY")); err == nil && p != 0 {
+	if p, err := strconv.Atoi(os.Getenv("PUSHOVER_PRIORITY")); err == nil {
 		priority = p
 	}
 

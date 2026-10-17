@@ -114,3 +114,49 @@ func TestRunURL(t *testing.T) {
 		})
 	}
 }
+
+// TestRunTextRendering verifies rendering flags reach the message and invalid combinations do not send.
+func TestRunTextRendering(t *testing.T) {
+	testCases := []struct {
+		name      string
+		args      []string
+		wantError string
+		monospace bool
+	}{
+		{
+			name:      "monospace",
+			args:      []string{"pushover", "-m", "hi", "-monospace"},
+			monospace: true,
+		},
+		{
+			name:      "HTML and monospace",
+			args:      []string{"pushover", "-m", "hi", "-html", "-monospace"},
+			wantError: "html and monospace are mutually exclusive",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := &MockPushoverClient{}
+			err := Run(tc.args, mock)
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("Run() error = %v, want text %q", err, tc.wantError)
+				}
+				if mock.lastMessage != nil {
+					t.Fatalf("mock received a message: %#v", mock.lastMessage)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if mock.lastMessage == nil {
+				t.Fatal("Run() did not send a message")
+			}
+			if mock.lastMessage.Monospace != tc.monospace {
+				t.Errorf("Monospace = %t, want %t", mock.lastMessage.Monospace, tc.monospace)
+			}
+		})
+	}
+}

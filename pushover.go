@@ -61,6 +61,9 @@ var newPushoverClient = NewPushoverClient
 
 // CreateMessage creates a Pushover message and returns an error for invalid input.
 func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushover.Message, error) {
+	if cliArgs.HTML && cliArgs.Monospace {
+		return nil, errors.New("html and monospace are mutually exclusive")
+	}
 	if utf8.RuneCountInString(cliArgs.URL) > 512 {
 		return nil, errors.New("url must be at most 512 characters")
 	}
@@ -114,6 +117,8 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 	message.DeviceName = deviceName
 	message.URL = cliArgs.URL
 	message.URLTitle = cliArgs.URLTitle
+	message.HTML = cliArgs.HTML
+	message.Monospace = cliArgs.Monospace
 
 	// Set timestamp to now
 	message.Timestamp = time.Now().Unix()

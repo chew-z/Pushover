@@ -22,6 +22,8 @@ func TestHandleSendNotification(t *testing.T) {
 		wantPriority    int
 		wantURL         string
 		wantURLTitle    string
+		wantHTML        bool
+		wantMonospace   bool
 		wantNoMessage   bool
 	}{
 		{
@@ -68,6 +70,19 @@ func TestHandleSendNotification(t *testing.T) {
 			arguments:     map[string]any{"message": "test message", "url_title": "Example"},
 			wantError:     true,
 			errorText:     "url_title requires url",
+			wantNoMessage: true,
+		},
+		{
+			name:        "HTML",
+			arguments:   map[string]any{"message": "test message", "html": true},
+			wantMessage: "test message",
+			wantHTML:    true,
+		},
+		{
+			name:          "HTML and monospace are mutually exclusive",
+			arguments:     map[string]any{"message": "test message", "html": true, "monospace": true},
+			wantError:     true,
+			errorText:     "html and monospace are mutually exclusive",
 			wantNoMessage: true,
 		},
 	}
@@ -118,6 +133,12 @@ func TestHandleSendNotification(t *testing.T) {
 				}
 				if mock.lastMessage.URLTitle != tc.wantURLTitle {
 					t.Errorf("URLTitle = %q, want %q", mock.lastMessage.URLTitle, tc.wantURLTitle)
+				}
+				if mock.lastMessage.HTML != tc.wantHTML {
+					t.Errorf("HTML = %t, want %t", mock.lastMessage.HTML, tc.wantHTML)
+				}
+				if mock.lastMessage.Monospace != tc.wantMonospace {
+					t.Errorf("Monospace = %t, want %t", mock.lastMessage.Monospace, tc.wantMonospace)
 				}
 			}
 		})

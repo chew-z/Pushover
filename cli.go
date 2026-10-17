@@ -19,7 +19,11 @@ type CLIArgs struct {
 	// URL is the supplementary URL shown with the notification.
 	URL string
 	// URLTitle is the title shown for URL.
-	URLTitle    string
+	URLTitle string
+	// HTML renders the message as HTML.
+	HTML bool
+	// Monospace renders the message in a monospace font.
+	Monospace   bool
 	Sound       string
 	ExpireTime  int
 	RetryTime   int
@@ -46,10 +50,13 @@ func showMainHelp(progName string) {
 	fmt.Fprintln(os.Stdout, "  -h    Show help")
 	fmt.Fprintln(os.Stdout, "  -help")
 	fmt.Fprintln(os.Stdout, "        Show help")
+	fmt.Fprintln(os.Stdout, "  -html    Render the message as HTML")
 	fmt.Fprintln(os.Stdout, "  -m string")
 	fmt.Fprintln(os.Stdout, "        Message to send (required)")
 	fmt.Fprintln(os.Stdout, "  -message string")
 	fmt.Fprintln(os.Stdout, "        Message to send (required)")
+	fmt.Fprintln(os.Stdout, "  -monospace")
+	fmt.Fprintln(os.Stdout, "        Render the message in a monospace font")
 	fmt.Fprintln(os.Stdout, "  -p int")
 	fmt.Fprintln(os.Stdout, "        Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)")
 	fmt.Fprintln(os.Stdout, "  -priority int")
@@ -90,6 +97,8 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 	fs.StringVar(&cliArgs.Title, "title", "", "Message title")
 	fs.StringVar(&cliArgs.URL, "url", "", "Supplementary URL shown with the notification")
 	fs.StringVar(&cliArgs.URLTitle, "url-title", "", "Title for the supplementary URL")
+	fs.BoolVar(&cliArgs.HTML, "html", false, "Render the message as HTML")
+	fs.BoolVar(&cliArgs.Monospace, "monospace", false, "Render the message in a monospace font")
 	fs.IntVar(&cliArgs.Priority, "p", 0, "Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)")
 	fs.IntVar(&cliArgs.Priority, "priority", 0, "Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)")
 	fs.StringVar(&cliArgs.Sound, "s", "", "Sound name")

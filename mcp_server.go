@@ -38,6 +38,12 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 				mcp.Description("Title for the supplementary URL (max 100 characters; requires url)"),
 				mcp.MaxLength(100),
 			),
+			mcp.WithBoolean("html",
+				mcp.Description("Render the message as HTML (mutually exclusive with monospace)"),
+			),
+			mcp.WithBoolean("monospace",
+				mcp.Description("Render the message in a monospace font (mutually exclusive with html)"),
+			),
 			mcp.WithInteger("priority",
 				mcp.Description("Priority level (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)"),
 				mcp.Min(-2),
@@ -134,6 +140,8 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	title := request.GetString("title", "")
 	url := request.GetString("url", "")
 	urlTitle := request.GetString("url_title", "")
+	html := request.GetBool("html", false)
+	monospace := request.GetBool("monospace", false)
 	priority := 0
 	prioritySet := false
 	if _, ok := arguments["priority"]; ok {
@@ -160,6 +168,8 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 		Title:       title,
 		URL:         url,
 		URLTitle:    urlTitle,
+		HTML:        html,
+		Monospace:   monospace,
 		Priority:    priority,
 		PrioritySet: prioritySet,
 		Sound:       sound,

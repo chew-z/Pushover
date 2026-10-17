@@ -52,7 +52,7 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 				mcp.Max(86400),
 			),
 		),
-		wrapWithAuth(handleSendNotification, "send_notification", config),
+		wrapWithLogging(handleSendNotification, "send_notification", config),
 	)
 
 	return mcpServer
@@ -86,8 +86,8 @@ func runMCPServerWithTransport(transport string, authEnabled bool) error {
 	}
 }
 
-// wrapWithAuth wraps tool handlers with authentication and logging
-func wrapWithAuth(
+// wrapWithLogging wraps tool handlers with request logging.
+func wrapWithLogging(
 	handler func(context.Context, mcp.CallToolRequest, *MCPConfig) (*mcp.CallToolResult, error),
 	toolName string,
 	config *MCPConfig,
@@ -95,14 +95,8 @@ func wrapWithAuth(
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		slog.Debug("tool call started", "tool", toolName)
 
-		// Check authentication for HTTP requests
-		if isHTTPRequest(ctx) && config.AuthEnabled {
-			if !isAuthenticated(ctx) {
-				authError := getAuthError(ctx)
-				slog.Warn("tool call rejected", "tool", toolName, "reason", authError)
-				return mcp.NewToolResultError(fmt.Sprintf("Authentication required: %s", authError)), nil
-			}
-			slog.Info("tool call authenticated", "tool", toolName, "user", getUsername(ctx))
+		if actor, ok := actorFrom(ctx); ok {
+			slog.Info("tool call actor", "tool", toolName, "actor", actor)
 		}
 
 		// Call the actual handler
@@ -169,12 +163,8 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 		responseText += fmt.Sprintf(". Receipt: %s", response.Receipt)
 	}
 
-	// Add user info if authenticated
-	if isHTTPRequest(ctx) && isAuthenticated(ctx) {
-		username := getUsername(ctx)
-		if username != "" {
-			responseText += fmt.Sprintf(" (sent by %s)", username)
-		}
+	if username, ok := actorFrom(ctx); ok {
+		responseText += fmt.Sprintf(" (sent by %s)", username)
 	}
 
 	return mcp.NewToolResultText(responseText), nil

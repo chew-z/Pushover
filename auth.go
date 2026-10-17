@@ -2,234 +2,201 @@ package main
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/chew-z/Pushover/internal/oauth"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// AuthMiddleware handles JWT-based authentication for HTTP requests
-type AuthMiddleware struct {
-	secretKey []byte
-	enabled   bool
-}
-
-// Claims represents the JWT claims structure
-type Claims struct {
-	jwt.RegisteredClaims
-	UserID   string `json:"user_id"`
-	Username string `json:"username"`
-	Role     string `json:"role"`
-}
-
-// contextKey is a custom type for context keys to avoid collisions
-type contextKey string
-
-// Context keys for storing authentication information
+// staticIssuer, staticAudience, authRealm, and maxMCPBodyBytes define the static authentication values and request limit.
 const (
-	contextKeyUserID        contextKey = "user_id"
-	contextKeyUsername      contextKey = "username"
-	contextKeyRole          contextKey = "role"
-	contextKeyAuthError     contextKey = "auth_error"
-	contextKeyHTTPMethod    contextKey = "http_method"
-	contextKeyAuthenticated contextKey = "authenticated"
+	staticIssuer    = "pushover-mcp"
+	staticAudience  = "pushover-mcp-user"
+	authRealm       = "pushover-mcp"
+	maxMCPBodyBytes = 4 << 20
 )
 
-// NewAuthMiddleware creates a new authentication middleware
-func NewAuthMiddleware(secretKey string, enabled bool) *AuthMiddleware {
-	return &AuthMiddleware{
-		secretKey: []byte(secretKey),
-		enabled:   enabled,
-	}
+// claims contains the JWT claims accepted by the MCP HTTP transport.
+type claims struct {
+	Username string `json:"username"`
+	Scope    string `json:"scope,omitempty"`
+	jwt.RegisteredClaims
 }
 
-// HTTPContextFunc returns a function that adds authentication context to HTTP requests
-func (am *AuthMiddleware) HTTPContextFunc() func(context.Context, *http.Request) context.Context {
-	return func(ctx context.Context, r *http.Request) context.Context {
-		// Add HTTP method to context for tool handlers to distinguish HTTP vs STDIO
-		ctx = context.WithValue(ctx, contextKeyHTTPMethod, r.Method)
+// contextKey identifies values stored in request contexts.
+type contextKey string
 
-		// If authentication is disabled, mark as authenticated and return
-		if !am.enabled {
-			ctx = context.WithValue(ctx, contextKeyAuthenticated, true)
-			return ctx
-		}
+// contextKeyHTTPMethod records whether a tool request originated over HTTP.
+const contextKeyHTTPMethod contextKey = "http_method"
 
-		// Extract and validate JWT token
-		token := extractTokenFromHeader(r)
-		if token == "" {
-			ctx = context.WithValue(ctx, contextKeyAuthError, "missing or invalid authorization header")
-			ctx = context.WithValue(ctx, contextKeyAuthenticated, false)
-			return ctx
-		}
-
-		// Validate JWT token
-		claims, err := am.validateJWT(token)
-		if err != nil {
-			ctx = context.WithValue(ctx, contextKeyAuthError, fmt.Sprintf("invalid token: %v", err))
-			ctx = context.WithValue(ctx, contextKeyAuthenticated, false)
-			return ctx
-		}
-
-		// Add user information to context
-		ctx = context.WithValue(ctx, contextKeyUserID, claims.UserID)
-		ctx = context.WithValue(ctx, contextKeyUsername, claims.Username)
-		ctx = context.WithValue(ctx, contextKeyRole, claims.Role)
-		ctx = context.WithValue(ctx, contextKeyAuthenticated, true)
-
-		return ctx
+// SignToken signs a JWT for the supplied identity, audience, scope, and lifetime.
+func SignToken(secret, issuer, audience, username, scope string, ttl time.Duration) (string, error) {
+	if ttl <= 0 {
+		return "", fmt.Errorf("token TTL must be greater than 0")
 	}
+	now := time.Now()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
+		Username: username,
+		Scope:    scope,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer: issuer, Audience: jwt.ClaimStrings{audience}, IssuedAt: jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
+		},
+	})
+	value, err := token.SignedString([]byte(secret))
+	if err != nil {
+		return "", fmt.Errorf("sign token: %w", err)
+	}
+	return value, nil
 }
 
-// extractTokenFromHeader extracts the Bearer token from the Authorization header
+// GenerateStaticToken creates a legacy static bearer token with the project's fixed issuer and audience.
+func GenerateStaticToken(secret, username string, ttl time.Duration) (string, error) {
+	return SignToken(secret, staticIssuer, staticAudience, username, "", ttl)
+}
+
+// HS256Signer signs OAuth tokens with the configured HMAC secret and claims.
+type HS256Signer struct{ Secret, Issuer, Audience string }
+
+// _ verifies at compile time that HS256Signer implements oauth.Signer.
+var _ oauth.Signer = HS256Signer{}
+
+// Sign creates an OAuth token using the configured HS256 signer.
+func (s HS256Signer) Sign(username, scope string, ttl time.Duration) (string, error) {
+	return SignToken(s.Secret, s.Issuer, s.Audience, username, scope, ttl)
+}
+
+// extractTokenFromHeader returns the Bearer token from an Authorization header.
 func extractTokenFromHeader(r *http.Request) string {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		return ""
-	}
-
-	parts := strings.Fields(authHeader)
+	parts := strings.Fields(r.Header.Get("Authorization"))
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 		return ""
 	}
 	return parts[1]
 }
 
-// validateJWT validates a JWT token and returns the claims
-func (am *AuthMiddleware) validateJWT(tokenString string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (any, error) {
-		if token.Method != jwt.SigningMethodHS256 {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+// parseBearerToken validates an HTTP bearer token and returns its claims.
+func parseBearerToken(secret string, r *http.Request) (*claims, error) {
+	tokenString := extractTokenFromHeader(r)
+	if tokenString == "" {
+		return nil, fmt.Errorf("malformed bearer token")
+	}
+	parsedClaims := &claims{}
+	_, err := jwt.ParseWithClaims(tokenString, parsedClaims, func(*jwt.Token) (any, error) {
+		return []byte(secret), nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithLeeway(60*time.Second), jwt.WithExpirationRequired())
+	if err != nil {
+		return nil, fmt.Errorf("parse bearer token: %w", err)
+	}
+	if strings.TrimSpace(parsedClaims.Username) == "" {
+		return nil, fmt.Errorf("token username is empty")
+	}
+	return parsedClaims, nil
+}
+
+// tokenPair describes an accepted issuer, audience, and optional scope.
+type tokenPair struct{ issuer, audience, scope string }
+
+// authGuard holds the secret and token profiles used to protect the MCP endpoint.
+type authGuard struct {
+	secret string
+	pairs  []tokenPair
+	oauth  *oauth.Config
+}
+
+// newAuthGuard builds the static pair (pushover-mcp/pushover-mcp-user, no scope), preserving
+// legacy tokens with user_id/role, and adds the OAuth issuer/resource pair, which requires its scope.
+func newAuthGuard(cfg *MCPConfig, oauthCfg *oauth.Config) *authGuard {
+	guard := &authGuard{secret: cfg.AuthSecretKey, pairs: []tokenPair{{issuer: staticIssuer, audience: staticAudience}}, oauth: oauthCfg}
+	if oauthCfg != nil {
+		guard.pairs = append(guard.pairs, tokenPair{issuer: cfg.OAuthIssuer, audience: cfg.OAuthResource, scope: oauthCfg.Scope})
+	}
+	return guard
+}
+
+// protectMCP enforces auth at HTTP layer so clients receive a real 401 and WWW-Authenticate
+// (claude.ai starts OAuth only on that); it caps bodies because mcp-go uses io.ReadAll, nil means open mode, and OPTIONS passes CORS preflight.
+func (g *authGuard) protectMCP(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxMCPBodyBytes)
+		if g == nil || r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
 		}
-		return am.secretKey, nil
-	},
-		jwt.WithIssuer("pushover-mcp"),
-		jwt.WithAudience("pushover-mcp-user"),
-		jwt.WithLeeway(60*time.Second),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, errors.New("invalid token")
+		parsedClaims, err := parseBearerToken(g.secret, r)
+		if err != nil {
+			g.writeChallenge(w, "invalid_token")
+			writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		for _, pair := range g.pairs {
+			if parsedClaims.Issuer != pair.issuer || !hasAudience(parsedClaims.Audience, pair.audience) {
+				continue
+			}
+			if pair.scope != "" && parsedClaims.Scope != pair.scope {
+				g.writeChallenge(w, "insufficient_scope")
+				writeAuthError(w, http.StatusForbidden, "insufficient_scope")
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), actorKey{}, parsedClaims.Username)))
+			return
+		}
+		g.writeChallenge(w, "invalid_token")
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+	})
 }
 
-// GenerateJWT generates a JWT token for the given user information
-func (am *AuthMiddleware) GenerateJWT(userID, username, role string, expirationHours int) (string, error) {
-	now := time.Now()
-	claims := Claims{
-		Issuer:    "pushover-mcp",
-		Audience:  jwt.ClaimStrings{"pushover-mcp-user"},
-		ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(expirationHours) * time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(now),
-		NotBefore: jwt.NewNumericDate(now),
-		UserID:    userID,
-		Username:  username,
-		Role:      role,
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(am.secretKey)
-}
-
-// Helper functions for extracting authentication information from context
-
-// getUserID retrieves the user ID from the context
-func getUserID(ctx context.Context) string {
-	if userID, ok := ctx.Value(contextKeyUserID).(string); ok {
-		return userID
-	}
-	return ""
-}
-
-// getUsername retrieves the username from the context
-func getUsername(ctx context.Context) string {
-	if username, ok := ctx.Value(contextKeyUsername).(string); ok {
-		return username
-	}
-	return ""
-}
-
-// getRole retrieves the user role from the context
-func getRole(ctx context.Context) string {
-	if role, ok := ctx.Value(contextKeyRole).(string); ok {
-		return role
-	}
-	return ""
-}
-
-// getAuthError retrieves any authentication error from the context
-func getAuthError(ctx context.Context) string {
-	if authError, ok := ctx.Value(contextKeyAuthError).(string); ok {
-		return authError
-	}
-	return ""
-}
-
-// isAuthenticated checks if the request is authenticated
-func isAuthenticated(ctx context.Context) bool {
-	if authenticated, ok := ctx.Value(contextKeyAuthenticated).(bool); ok {
-		return authenticated
+// hasAudience reports whether the expected audience is present in a JWT claim set.
+func hasAudience(audiences jwt.ClaimStrings, audience string) bool {
+	for _, candidate := range audiences {
+		if candidate == audience {
+			return true
+		}
 	}
 	return false
 }
 
-// isHTTPRequest checks if the request came via HTTP (vs STDIO)
+// writeChallenge writes a Bearer challenge, adding resource_metadata only when OAuth is enabled for RFC 9728 discovery.
+func (g *authGuard) writeChallenge(w http.ResponseWriter, code string) {
+	challenge := `Bearer realm="` + authRealm + `", error="` + code + `"`
+	if g.oauth != nil {
+		challenge += `, resource_metadata="` + oauth.IssuerOrigin(g.oauth.Issuer) + oauth.ProtectedResourceMetadataPath(g.oauth.Resource) + `", scope="` + g.oauth.Scope + `"`
+	}
+	w.Header().Set("WWW-Authenticate", challenge)
+}
+
+// writeAuthError writes a JSON authentication error with the supplied HTTP status.
+func writeAuthError(w http.ResponseWriter, status int, code string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": code})
+}
+
+// actorKey identifies the authenticated actor in a request context.
+type actorKey struct{}
+
+// actorFrom returns the authenticated actor stored in a context.
+func actorFrom(ctx context.Context) (string, bool) {
+	actor, ok := ctx.Value(actorKey{}).(string)
+	return actor, ok
+}
+
+// copyActor marks HTTP requests and copies protectMCP's actor so tools can distinguish HTTP
+// from stdio via isHTTPRequest; it is installed in every mode because mcp-go passes the original request to WithHTTPContextFunc.
+func copyActor(ctx context.Context, r *http.Request) context.Context {
+	ctx = context.WithValue(ctx, contextKeyHTTPMethod, r.Method)
+	if actor, ok := actorFrom(r.Context()); ok {
+		ctx = context.WithValue(ctx, actorKey{}, actor)
+	}
+	return ctx
+}
+
+// isHTTPRequest reports whether a tool context came from an HTTP request rather than stdio.
 func isHTTPRequest(ctx context.Context) bool {
-	if httpMethod, ok := ctx.Value(contextKeyHTTPMethod).(string); ok {
-		return httpMethod != ""
-	}
-	return false
-}
-
-// GenerateTokenCommand is a utility function to generate a token from command line
-// This can be used for testing or initial token generation
-func GenerateTokenCommand(secretKey, userID, username, role string, expirationHours int) {
-	auth := NewAuthMiddleware(secretKey, true)
-	token, err := auth.GenerateJWT(userID, username, role, expirationHours)
-	if err != nil {
-		fmt.Printf("Error generating token: %v\n", err)
-		return
-	}
-
-	fmt.Printf("Generated JWT token:\n%s\n", token)
-	fmt.Printf("\nTo use this token, include it in the Authorization header:\n")
-	fmt.Printf("Authorization: Bearer %s\n", token)
-	fmt.Printf("\nToken details:\n")
-	fmt.Printf("User ID: %s\n", userID)
-	fmt.Printf("Username: %s\n", username)
-	fmt.Printf("Role: %s\n", role)
-	fmt.Printf("Expires in: %d hours\n", expirationHours)
-}
-
-// TokenInfo displays information about a JWT token
-func (am *AuthMiddleware) TokenInfo(token string) {
-	claims, err := am.validateJWT(token)
-	if err != nil {
-		fmt.Printf("Invalid token: %v\n", err)
-		return
-	}
-
-	fmt.Printf("Token Information:\n")
-	fmt.Printf("User ID: %s\n", claims.UserID)
-	fmt.Printf("Username: %s\n", claims.Username)
-	fmt.Printf("Role: %s\n", claims.Role)
-	fmt.Printf("Issued At: %s\n", claims.IssuedAt.Format(time.RFC3339))
-	fmt.Printf("Expires At: %s\n", claims.ExpiresAt.Format(time.RFC3339))
-
-	if time.Now().After(claims.ExpiresAt.Time) {
-		fmt.Printf("Status: EXPIRED\n")
-	} else {
-		fmt.Printf("Status: VALID\n")
-		remaining := time.Until(claims.ExpiresAt.Time)
-		fmt.Printf("Time Remaining: %s\n", remaining.String())
-	}
+	httpMethod, ok := ctx.Value(contextKeyHTTPMethod).(string)
+	return ok && httpMethod != ""
 }

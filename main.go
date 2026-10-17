@@ -31,7 +31,7 @@ func main() {
 	// Check for subcommands first
 	if subcommand, hasSubcmd := hasSubcommand(os.Args); hasSubcmd && subcommand == "mcp" {
 		// Parse MCP subcommand arguments
-		if err := parseMCPArgs(os.Args); err != nil {
+		if err := runMCPCommand(os.Args, os.Stdin, os.Stdout, os.Stderr); err != nil {
 			slog.Error("MCP server failed", "error", err)
 			os.Exit(1)
 		}

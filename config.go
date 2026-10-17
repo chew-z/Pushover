@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chew-z/Pushover/internal/oauth"
 	"github.com/gregdel/pushover"
 )
 
@@ -36,8 +37,15 @@ type MCPConfig struct {
 	HTTPDisableLocalhostProtection bool
 
 	// Authentication settings
-	AuthEnabled   bool
-	AuthSecretKey string
+	AuthEnabled            bool
+	AuthSecretKey          string
+	OAuthEnabled           bool
+	OAuthIssuer            string
+	OAuthResource          string
+	OAuthLoginUser         string
+	OAuthLoginPasswordHash string
+	OAuthAccessTTL         time.Duration
+	OAuthRefreshTTL        time.Duration
 
 	// Pushover-specific settings (from existing Config)
 	PushoverAppKey          string
@@ -50,7 +58,7 @@ type MCPConfig struct {
 	PushoverDefaultRetry    int
 }
 
-// Default configuration values
+// defaultHTTPAddress and related constants define the built-in configuration values.
 //
 // Pushover is always deployed behind a reverse proxy (nginx) that forwards
 // the real Host header. mcp-go's DNS-rebinding protection only guards against
@@ -66,6 +74,8 @@ const (
 	defaultHTTPCORSEnabled                = true
 	defaultHTTPDisableLocalhostProtection = true
 	defaultAuthEnabled                    = false
+	defaultOAuthAccessTTL                 = time.Hour
+	defaultOAuthRefreshTTL                = 720 * time.Hour
 	defaultExpireTime                     = 180
 	defaultRetryTime                      = 60
 )
@@ -109,6 +119,15 @@ func LoadConfig() Config {
 
 // NewMCPConfig creates a new MCP configuration from environment variables and flags
 func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
+	config := loadMCPConfig(authEnabledFlag)
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("configuration validation failed: %w", err)
+	}
+	return config, nil
+}
+
+// loadMCPConfig reads MCP configuration without validating it.
+func loadMCPConfig(authEnabledFlag bool) *MCPConfig {
 	config := &MCPConfig{
 		// HTTP transport settings
 		HTTPAddress:                    getEnvWithDefault("PUSHOVER_HTTP_ADDRESS", defaultHTTPAddress),
@@ -121,14 +140,24 @@ func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
 		HTTPDisableLocalhostProtection: parseEnvBool("PUSHOVER_HTTP_DISABLE_LOCALHOST_PROTECTION", defaultHTTPDisableLocalhostProtection),
 
 		// Authentication settings - prioritize command-line flags over environment
-		AuthEnabled:   authEnabledFlag || parseEnvBool("PUSHOVER_AUTH_ENABLED", defaultAuthEnabled),
-		AuthSecretKey: getEnvWithDefault("PUSHOVER_AUTH_SECRET_KEY", ""),
+		AuthEnabled:            authEnabledFlag || parseEnvBool("PUSHOVER_AUTH_ENABLED", defaultAuthEnabled),
+		AuthSecretKey:          getEnvWithDefault("PUSHOVER_AUTH_SECRET_KEY", ""),
+		OAuthEnabled:           parseEnvBool("PUSHOVER_MCP_OAUTH", false),
+		OAuthIssuer:            os.Getenv("PUSHOVER_MCP_ISSUER"),
+		OAuthResource:          os.Getenv("PUSHOVER_MCP_RESOURCE"),
+		OAuthLoginUser:         os.Getenv("PUSHOVER_MCP_LOGIN_USER"),
+		OAuthLoginPasswordHash: os.Getenv("PUSHOVER_MCP_LOGIN_PASSWORD_HASH"),
+		OAuthAccessTTL:         parseEnvDuration("PUSHOVER_MCP_ACCESS_TTL", defaultOAuthAccessTTL),
+		OAuthRefreshTTL:        parseEnvDuration("PUSHOVER_MCP_REFRESH_TTL", defaultOAuthRefreshTTL),
 
 		// Pushover-specific settings
 		PushoverAppKey:       os.Getenv("APP_KEY"),
 		PushoverRecipientKey: os.Getenv("RECIPIENT_KEY"),
 		PushoverDeviceName:   os.Getenv("DEVICE_NAME"),
 		PushoverDefaultTitle: os.Getenv("DEFAULT_TITLE"),
+	}
+	if config.OAuthEnabled {
+		config.AuthEnabled = true
 	}
 
 	// Parse Pushover priority with error handling, default to PriorityLow
@@ -155,16 +184,14 @@ func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
 		config.PushoverDefaultRetry = r
 	}
 
-	// Validate configuration
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("configuration validation failed: %w", err)
-	}
-
-	return config, nil
+	return config
 }
 
 // Validate checks the configuration for required fields and valid values
 func (c *MCPConfig) Validate() error {
+	if !strings.HasPrefix(c.HTTPPath, "/") || c.HTTPPath == "/" {
+		return errors.New("PUSHOVER_HTTP_PATH must start with / and must not be /")
+	}
 	// Validate required Pushover fields
 	if c.PushoverAppKey == "" {
 		return errors.New("APP_KEY environment variable is required")
@@ -191,8 +218,33 @@ func (c *MCPConfig) Validate() error {
 	if c.AuthEnabled && c.AuthSecretKey == "" {
 		return errors.New("PUSHOVER_AUTH_SECRET_KEY is required when authentication is enabled")
 	}
+	if c.OAuthEnabled {
+		if !c.AuthEnabled {
+			return errors.New("OAuth requires authentication to be enabled")
+		}
+		if len(c.AuthSecretKey) < 32 {
+			return errors.New("PUSHOVER_AUTH_SECRET_KEY must be at least 32 bytes when OAuth is enabled")
+		}
+		if _, err := c.OAuthConfig(); err != nil {
+			return fmt.Errorf("validate OAuth configuration: %w", err)
+		}
+	}
 
 	return nil
+}
+
+// OAuthConfig derives the OAuth server configuration from the MCP settings.
+func (c *MCPConfig) OAuthConfig() (oauth.Config, error) {
+	cfg := oauth.Config{
+		Issuer: c.OAuthIssuer, Resource: c.OAuthResource, LoginUser: c.OAuthLoginUser,
+		LoginPasswordHash: c.OAuthLoginPasswordHash, AccessTokenTTL: c.OAuthAccessTTL,
+		RefreshTokenTTL: c.OAuthRefreshTTL,
+		Signer:          HS256Signer{Secret: c.AuthSecretKey, Issuer: c.OAuthIssuer, Audience: c.OAuthResource},
+	}
+	if err := cfg.Validate(); err != nil {
+		return oauth.Config{}, fmt.Errorf("validate OAuth config: %w", err)
+	}
+	return cfg, nil
 }
 
 // ToLegacyConfig converts MCPConfig to the legacy Config structure for compatibility

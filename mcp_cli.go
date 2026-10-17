@@ -1,128 +1,117 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"strings"
+	"time"
+
+	"github.com/chew-z/Pushover/internal/oauth"
+	"golang.org/x/term"
 )
 
-// showMCPHelp displays the MCP subcommand help text
-func showMCPHelp(progName string) {
-	fmt.Fprintf(os.Stdout, "Usage: %s mcp [OPTIONS]\n", progName)
-	fmt.Fprintln(os.Stdout, "\nStart MCP server for push notifications")
-	fmt.Fprintln(os.Stdout, "\nOptions:")
-	fmt.Fprintln(os.Stdout, "  -auth-enabled")
-	fmt.Fprintln(os.Stdout, "        Enable JWT authentication for HTTP transport")
-	fmt.Fprintln(os.Stdout, "  -generate-token")
-	fmt.Fprintln(os.Stdout, "        Generate a JWT token and exit")
-	fmt.Fprintln(os.Stdout, "  -h    Show help")
-	fmt.Fprintln(os.Stdout, "  -help")
-	fmt.Fprintln(os.Stdout, "        Show help")
-	fmt.Fprintln(os.Stdout, "  -token-expiration int")
-	fmt.Fprintln(os.Stdout, "        Token expiration in hours (default: 744 = 31 days) (default 744)")
-	fmt.Fprintln(os.Stdout, "  -token-role string")
-	fmt.Fprintln(os.Stdout, "        Role for token generation (default \"admin\")")
-	fmt.Fprintln(os.Stdout, "  -token-user-id string")
-	fmt.Fprintln(os.Stdout, "        User ID for token generation (default \"user1\")")
-	fmt.Fprintln(os.Stdout, "  -token-username string")
-	fmt.Fprintln(os.Stdout, "        Username for token generation (default \"admin\")")
-	fmt.Fprintln(os.Stdout, "  -transport string")
-	fmt.Fprintln(os.Stdout, "        Transport mode: 'stdio' (default) or 'http' (default \"stdio\")")
-	fmt.Fprintln(os.Stdout, "\nEnvironment Variables:")
-	fmt.Fprintln(os.Stdout, "  APP_KEY                        Pushover application key (required)")
-	fmt.Fprintln(os.Stdout, "  RECIPIENT_KEY                  Pushover recipient key (required)")
-	fmt.Fprintln(os.Stdout, "  DEVICE_NAME                    Default device name")
-	fmt.Fprintln(os.Stdout, "  DEFAULT_TITLE                  Default message title")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_PRIORITY              Default priority")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_SOUND                 Default sound")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_EXPIRE                Default expire time")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_ADDRESS          Server bind address (default \":8080\")")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_PATH             Endpoint path (default \"/mcp\")")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_STATELESS        Session management mode (default false)")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_HEARTBEAT        Heartbeat interval (default \"30s\")")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_TIMEOUT          Request timeout (default \"30s\")")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_CORS_ENABLED     Enable CORS (default true)")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_HTTP_CORS_ORIGINS     Allowed origins (default \"*\")")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_AUTH_ENABLED          Enable JWT authentication (default false)")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_AUTH_SECRET_KEY       JWT signing secret")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_LOG_LEVEL             Log level: debug, info, warn, error (default \"info\")")
+// showMCPHelp writes the MCP subcommand help text.
+func showMCPHelp(out io.Writer, progName string) {
+	fmt.Fprintf(out, "Usage: %s mcp [OPTIONS]\n", progName)
+	fmt.Fprintln(out, "\nStart MCP server for push notifications")
+	fmt.Fprintln(out, "\nOptions:")
+	fmt.Fprintln(out, "  -auth-enabled                 Enable bearer authentication for HTTP transport")
+	fmt.Fprintln(out, "  -generate-token               Generate a static bearer token and exit")
+	fmt.Fprintln(out, "  -hash-password                Hash an OAuth login password and exit")
+	fmt.Fprintln(out, "  -h, -help                     Show help")
+	fmt.Fprintln(out, "  -token-username string        Token username (default \"admin\")")
+	fmt.Fprintln(out, "  -token-ttl duration           Token lifetime (default 744h)")
+	fmt.Fprintln(out, "  -transport string             Transport mode: 'stdio' (default) or 'http'")
+	fmt.Fprintln(out, "\nEnvironment Variables:")
+	fmt.Fprintln(out, "  APP_KEY                        Pushover application key (required to run the server)")
+	fmt.Fprintln(out, "  RECIPIENT_KEY                  Pushover recipient key (required to run the server)")
+	fmt.Fprintln(out, "  DEVICE_NAME, DEFAULT_TITLE, PUSHOVER_PRIORITY, PUSHOVER_SOUND, PUSHOVER_EXPIRE")
+	fmt.Fprintln(out, "  PUSHOVER_HTTP_ADDRESS          Server bind address (default \"127.0.0.1:8080\")")
+	fmt.Fprintln(out, "  PUSHOVER_HTTP_PATH             Endpoint path (default \"/mcp\")")
+	fmt.Fprintln(out, "  PUSHOVER_HTTP_STATELESS, PUSHOVER_HTTP_HEARTBEAT, PUSHOVER_HTTP_TIMEOUT")
+	fmt.Fprintln(out, "  PUSHOVER_HTTP_CORS_ENABLED     Enable CORS (default true)")
+	fmt.Fprintln(out, "  PUSHOVER_HTTP_CORS_ORIGINS     Allowed origins (default empty: none)")
+	fmt.Fprintln(out, "  PUSHOVER_AUTH_ENABLED, PUSHOVER_AUTH_SECRET_KEY")
+	fmt.Fprintln(out, "  PUSHOVER_MCP_OAUTH, PUSHOVER_MCP_ISSUER, PUSHOVER_MCP_RESOURCE")
+	fmt.Fprintln(out, "  PUSHOVER_MCP_LOGIN_USER, PUSHOVER_MCP_LOGIN_PASSWORD_HASH")
+	fmt.Fprintln(out, "  PUSHOVER_MCP_ACCESS_TTL, PUSHOVER_MCP_REFRESH_TTL")
+	fmt.Fprintln(out, "  PUSHOVER_LOG_LEVEL             Log level: debug, info, warn, error (default \"info\")")
 }
 
-// parseMCPArgs parses MCP subcommand arguments
-func parseMCPArgs(args []string) error {
-	// Create a new flag set for MCP subcommand
-	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
-
-	// MCP-specific flags
-	var (
-		authEnabled     = fs.Bool("auth-enabled", false, "Enable JWT authentication for HTTP transport")
-		generateToken   = fs.Bool("generate-token", false, "Generate a JWT token and exit")
-		tokenExpiration = fs.Int("token-expiration", 744, "Token expiration in hours (default: 744 = 31 days)")
-		tokenRole       = fs.String("token-role", "admin", "Role for token generation")
-		tokenUserID     = fs.String("token-user-id", "user1", "User ID for token generation")
-		tokenUsername   = fs.String("token-username", "admin", "Username for token generation")
-		transportMode   = fs.String("transport", "stdio", "Transport mode: 'stdio' (default) or 'http'")
-		showHelp        = fs.Bool("h", false, "Show help")
-		showHelp2       = fs.Bool("help", false, "Show help")
-	)
-
-	// Custom usage function for MCP
-	fs.Usage = func() {
-		showMCPHelp(args[0])
+// readPassword provides a test seam, suppressing terminal echo and reading one line from a pipe.
+var readPassword = func(stdin io.Reader, stderr io.Writer) (string, error) {
+	if file, ok := stdin.(*os.File); ok && term.IsTerminal(int(file.Fd())) {
+		value, err := term.ReadPassword(int(file.Fd()))
+		if err != nil {
+			return "", fmt.Errorf("read password: %w", err)
+		}
+		fmt.Fprintln(stderr)
+		return string(value), nil
 	}
+	line, err := bufio.NewReader(stdin).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", fmt.Errorf("read password: %w", err)
+	}
+	return strings.TrimRight(line, "\r\n"), nil
+}
 
-	// Parse arguments, skipping the program name and "mcp" subcommand
+// runMCPCommand parses the mcp subcommand. args includes the program name and "mcp".
+func runMCPCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	if len(args) < 2 {
+		return errors.New("mcp command arguments are incomplete")
+	}
+	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	authEnabled := fs.Bool("auth-enabled", false, "Enable bearer authentication for HTTP transport")
+	transportMode := fs.String("transport", "stdio", "Transport mode: 'stdio' (default) or 'http'")
+	showHelp := fs.Bool("h", false, "Show help")
+	showHelpLong := fs.Bool("help", false, "Show help")
+	generateToken := fs.Bool("generate-token", false, "Generate a static bearer token and exit")
+	tokenUsername := fs.String("token-username", "admin", "Token username")
+	tokenTTL := fs.Duration("token-ttl", 744*time.Hour, "Token lifetime")
+	hashPassword := fs.Bool("hash-password", false, "Hash an OAuth login password and exit")
+	fs.Usage = func() { showMCPHelp(stdout, args[0]) }
 	if err := fs.Parse(args[2:]); err != nil {
 		return err
 	}
-
-	// Handle help flag
-	if *showHelp || *showHelp2 {
+	if *showHelp || *showHelpLong {
 		fs.Usage()
 		return nil
 	}
-
-	// Set global flags from local variables
-	// We need to update the global variables that the MCP functions use
-	if *authEnabled {
-		// Set environment variable to enable auth
-		os.Setenv("PUSHOVER_AUTH_ENABLED", "true")
+	if *generateToken && *hashPassword {
+		return errors.New("-generate-token and -hash-password cannot be used together")
 	}
-
-	// Handle token generation
 	if *generateToken {
-		return generateTokenFromArgs(*tokenUserID, *tokenUsername, *tokenRole, *tokenExpiration)
+		secret := os.Getenv("PUSHOVER_AUTH_SECRET_KEY")
+		if secret == "" {
+			return errors.New("PUSHOVER_AUTH_SECRET_KEY environment variable is required for token generation")
+		}
+		token, err := GenerateStaticToken(secret, *tokenUsername, *tokenTTL)
+		if err != nil {
+			return fmt.Errorf("generate static token: %w", err)
+		}
+		_, _ = fmt.Fprintln(stdout, token)
+		return nil
 	}
-
-	// Run MCP server with the specified transport
+	if *hashPassword {
+		_, _ = fmt.Fprint(stderr, "Password: ")
+		password, err := readPassword(stdin, stderr)
+		if err != nil {
+			return err
+		}
+		if password == "" {
+			return errors.New("password must not be empty")
+		}
+		hash, err := oauth.HashPassword(password)
+		if err != nil {
+			return fmt.Errorf("hash password: %w", err)
+		}
+		_, _ = fmt.Fprintln(stdout, hash)
+		return nil
+	}
 	return runMCPServerWithTransport(*transportMode, *authEnabled)
-}
-
-// generateTokenFromArgs generates a JWT token using the provided arguments
-func generateTokenFromArgs(userID, username, role string, expirationHours int) error {
-	config, err := NewMCPConfig(false)
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	if config.AuthSecretKey == "" {
-		return errors.New("PUSHOVER_AUTH_SECRET_KEY environment variable is required for token generation")
-	}
-
-	authMiddleware := NewAuthMiddleware(config.AuthSecretKey, true)
-	token, err := authMiddleware.GenerateJWT(userID, username, role, expirationHours)
-	if err != nil {
-		return fmt.Errorf("failed to generate token: %w", err)
-	}
-
-	fmt.Printf("Generated JWT token:\n%s\n", token)
-	fmt.Printf("\nTo use this token, include it in the Authorization header:\n")
-	fmt.Printf("Authorization: Bearer %s\n", token)
-	fmt.Printf("\nToken details:\n")
-	fmt.Printf("User ID: %s\n", userID)
-	fmt.Printf("Username: %s\n", username)
-	fmt.Printf("Role: %s\n", role)
-	fmt.Printf("Expires in: %d hours\n", expirationHours)
-	return nil
 }

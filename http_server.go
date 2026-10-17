@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/chew-z/Pushover/internal/oauth"
 	"github.com/mark3labs/mcp-go/server"
 )
 
@@ -24,72 +25,58 @@ type HTTPServerManager struct {
 
 // NewHTTPServerManager creates a new HTTP server manager
 func NewHTTPServerManager(config *MCPConfig) *HTTPServerManager {
-	return &HTTPServerManager{
-		config: config,
-	}
+	return &HTTPServerManager{config: config}
 }
 
-// Start starts the HTTP server with the given MCP server
-func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
-	// Create HTTP server options
-	var opts []server.StreamableHTTPOption
-
-	// Configure heartbeat interval
+// buildHandler assembles the HTTP mux and MCP transport; it omits a "/" catch-all because
+// mcp-go's ServeHTTP ignores the path, so the mux enforces HTTPPath and every other path returns 404.
+func (hsm *HTTPServerManager) buildHandler(mcpServer *server.MCPServer) (http.Handler, error) {
+	opts := []server.StreamableHTTPOption{server.WithStateLess(hsm.config.HTTPStateless), server.WithEndpointPath(hsm.config.HTTPPath), server.WithHTTPContextFunc(copyActor)}
 	if hsm.config.HTTPHeartbeat > 0 {
 		opts = append(opts, server.WithHeartbeatInterval(hsm.config.HTTPHeartbeat))
 	}
-
-	// Configure stateless mode
-	opts = append(opts, server.WithStateLess(hsm.config.HTTPStateless))
-
-	// Configure endpoint path
-	opts = append(opts, server.WithEndpointPath(hsm.config.HTTPPath))
-
-	// Configure authentication middleware
-	if hsm.config.AuthEnabled {
-		authMiddleware := NewAuthMiddleware(hsm.config.AuthSecretKey, hsm.config.AuthEnabled)
-		opts = append(opts, server.WithHTTPContextFunc(authMiddleware.HTTPContextFunc()))
-	}
-
-	// Disable DNS rebinding protection when behind a reverse proxy
 	if hsm.config.HTTPDisableLocalhostProtection {
+		// nginx forwards the real Host header, so DNS-rebinding protection would 403 every proxied request.
 		opts = append(opts, server.WithDisableLocalhostProtection(true))
 	}
-
-	// Create the streamable HTTP server
 	hsm.mcpServer = server.NewStreamableHTTPServer(mcpServer, opts...)
-
-	// Create custom HTTP server with additional endpoints
 	mux := http.NewServeMux()
-
-	// Mount the MCP server at the root path
-	mux.Handle("/", hsm.mcpServer)
-
-	// Add health endpoint
+	var oauthCfg *oauth.Config
+	if hsm.config.OAuthEnabled {
+		cfg, err := hsm.config.OAuthConfig()
+		if err != nil {
+			return nil, fmt.Errorf("build OAuth configuration: %w", err)
+		}
+		oauthCfg = &cfg
+	}
+	var guard *authGuard
+	if hsm.config.AuthEnabled {
+		guard = newAuthGuard(hsm.config, oauthCfg)
+	}
+	mux.Handle(hsm.config.HTTPPath, guard.protectMCP(hsm.mcpServer))
 	mux.HandleFunc("/health", hsm.handleHealth)
-
-	// Add capabilities endpoint
 	mux.HandleFunc("/capabilities", hsm.handleCapabilities)
-
-	// Wrap with CORS middleware if enabled
+	if oauthCfg != nil {
+		oauth.Mount(mux, *oauthCfg, oauth.NewStore(nil), slog.Default())
+	}
 	var handler http.Handler = mux
 	if hsm.config.HTTPCORSEnabled {
 		handler = hsm.corsMiddleware(handler)
 	}
+	return handler, nil
+}
 
-	// Create HTTP server
-	hsm.httpServer = &http.Server{
-		Addr:         hsm.config.HTTPAddress,
-		Handler:      handler,
-		ReadTimeout:  hsm.config.HTTPTimeout,
-		WriteTimeout: hsm.config.HTTPTimeout,
-		IdleTimeout:  hsm.config.HTTPTimeout * 2,
+// Start starts the HTTP server with the given MCP server
+func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
+	handler, err := hsm.buildHandler(mcpServer)
+	if err != nil {
+		return fmt.Errorf("build HTTP handler: %w", err)
 	}
-
+	hsm.httpServer = &http.Server{Addr: hsm.config.HTTPAddress, Handler: handler, ReadTimeout: hsm.config.HTTPTimeout, WriteTimeout: hsm.config.HTTPTimeout, IdleTimeout: hsm.config.HTTPTimeout * 2}
 	// Set up graceful shutdown
 	stopChan := make(chan os.Signal, 1)
 	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
-
+	defer signal.Stop(stopChan)
 	// Start server in a goroutine
 	go func() {
 		slog.Info("HTTP server listening", "address", hsm.config.HTTPAddress, "path", hsm.config.HTTPPath)
@@ -97,21 +84,15 @@ func (hsm *HTTPServerManager) Start(mcpServer *server.MCPServer) error {
 			slog.Error("HTTP server error", "error", err)
 		}
 	}()
-
 	// Wait for shutdown signal
 	<-stopChan
-	slog.Info("shutting down HTTP server")
-
 	// Create shutdown context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
 	// Shutdown the server gracefully
 	if err := hsm.httpServer.Shutdown(ctx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
 	}
-
-	slog.Info("HTTP server stopped")
 	return nil
 }
 
@@ -129,17 +110,9 @@ func (hsm *HTTPServerManager) handleHealth(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-
-	response := map[string]any{
-		"status":    "healthy",
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-		"service":   "pushover-mcp-server",
-	}
-
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": "healthy", "timestamp": time.Now().UTC().Format(time.RFC3339), "service": "pushover-mcp-server"})
 }
 
 // handleCapabilities handles capability discovery requests
@@ -148,127 +121,38 @@ func (hsm *HTTPServerManager) handleCapabilities(w http.ResponseWriter, r *http.
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-
 	capabilities := map[string]any{
-		"name":        "pushover-mcp-server",
-		"version":     version,
-		"description": "MCP server for sending Pushover notifications",
-		"transport":   "http",
-		"tools": []map[string]any{
-			{
-				"name":        "send_notification",
-				"description": "Send a notification via Pushover",
-				"parameters": map[string]any{
-					"message":  "required - The notification message to send",
-					"title":    "optional - Title for the notification",
-					"priority": "optional - Priority level (-2 to 2)",
-					"device":   "optional - Target device name",
-					"sound":    "optional - Notification sound",
-					"expire":   "optional - Expiration time for emergency messages",
-				},
-			},
-		},
-		"authentication": map[string]any{
-			"enabled": hsm.config.AuthEnabled,
-			"type":    "JWT",
-		},
-		"features": []string{
-			"notifications",
-			"health_check",
-			"capabilities_discovery",
-		},
+		"name": "pushover-mcp-server", "version": version, "description": "MCP server for sending Pushover notifications", "transport": "http",
+		"tools":          []map[string]any{{"name": "send_notification", "description": "Send a notification via Pushover", "parameters": map[string]any{"message": "required - The notification message to send", "title": "optional - Title for the notification", "priority": "optional - Priority level (-2 to 2)", "device": "optional - Target device name", "sound": "optional - Notification sound", "expire": "optional - Expiration time for emergency messages"}}},
+		"authentication": map[string]any{"enabled": hsm.config.AuthEnabled, "type": "bearer", "oauth": hsm.config.OAuthEnabled}, "features": []string{"notifications", "health_check", "capabilities_discovery"},
 	}
-
-	json.NewEncoder(w).Encode(capabilities)
-}
-
-// handleGenerateToken handles token generation requests (for testing/development)
-func (hsm *HTTPServerManager) handleGenerateToken(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// This is a simple implementation for testing purposes
-	// In production, you'd want proper user authentication and validation
-	var request struct {
-		UserID    string `json:"user_id"`
-		Username  string `json:"username"`
-		Role      string `json:"role"`
-		ExpiresIn int    `json:"expires_in"` // hours
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	// Set defaults
-	if request.UserID == "" {
-		request.UserID = "default_user"
-	}
-	if request.Username == "" {
-		request.Username = "pushover_user"
-	}
-	if request.Role == "" {
-		request.Role = "user"
-	}
-	if request.ExpiresIn <= 0 {
-		request.ExpiresIn = 24 // 24 hours default
-	}
-
-	// Generate token
-	authMiddleware := NewAuthMiddleware(hsm.config.AuthSecretKey, true)
-	token, err := authMiddleware.GenerateJWT(request.UserID, request.Username, request.Role, request.ExpiresIn)
-	if err != nil {
-		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	response := map[string]any{
-		"token":      token,
-		"user_id":    request.UserID,
-		"username":   request.Username,
-		"role":       request.Role,
-		"expires_in": request.ExpiresIn,
-		"expires_at": time.Now().Add(time.Duration(request.ExpiresIn) * time.Hour).UTC().Format(time.RFC3339),
-	}
-
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(capabilities)
 }
 
 // corsMiddleware adds CORS headers to HTTP responses
 func (hsm *HTTPServerManager) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers
 		origin := r.Header.Get("Origin")
 		if origin != "" && hsm.isAllowedOrigin(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		} else if len(hsm.config.HTTPCORSOrigins) == 1 && hsm.config.HTTPCORSOrigins[0] == "*" {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
-
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID")
+		w.Header().Set("Access-Control-Expose-Headers", "WWW-Authenticate, Mcp-Session-Id")
 		w.Header().Set("Access-Control-Max-Age", "86400")
-
-		// Handle preflight requests
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
 		next.ServeHTTP(w, r)
 	})
 }
 
-// isAllowedOrigin checks if the origin is in the allowed list
+// isAllowedOrigin reports whether an origin is in the configured allowed list.
 func (hsm *HTTPServerManager) isAllowedOrigin(origin string) bool {
 	for _, allowedOrigin := range hsm.config.HTTPCORSOrigins {
 		if allowedOrigin == "*" || allowedOrigin == origin {

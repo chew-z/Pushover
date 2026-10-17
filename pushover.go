@@ -10,6 +10,9 @@ import (
 	"github.com/gregdel/pushover"
 )
 
+// maxExpireSeconds is Pushover's maximum emergency notification retry duration.
+const maxExpireSeconds = 10800
+
 // PushoverClient interface defines the methods we need from a Pushover client
 type PushoverClient interface {
 	SendMessage(message *pushover.Message, recipient *pushover.Recipient) (*pushover.Response, error)
@@ -107,6 +110,9 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 	expireTime := config.ExpireTime
 	if cliArgs.ExpireTime != 0 {
 		expireTime = cliArgs.ExpireTime
+	}
+	if expireTime > maxExpireSeconds {
+		return nil, errors.New("expire must be at most 10800 seconds")
 	}
 	message.Expire = time.Duration(expireTime) * time.Second
 

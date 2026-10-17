@@ -205,6 +205,9 @@ func (c *MCPConfig) Validate() error {
 	if c.PushoverDefaultPriority < -2 || c.PushoverDefaultPriority > 2 {
 		return fmt.Errorf("PUSHOVER_PRIORITY must be between -2 and 2, got %d", c.PushoverDefaultPriority)
 	}
+	if c.PushoverDefaultExpire > maxExpireSeconds {
+		return fmt.Errorf("PUSHOVER_EXPIRE must be at most %d seconds, got %d", maxExpireSeconds, c.PushoverDefaultExpire)
+	}
 
 	// Validate expire and retry for emergency priority
 	if c.PushoverDefaultPriority == int(pushover.PriorityEmergency) && c.PushoverDefaultExpire <= 0 {

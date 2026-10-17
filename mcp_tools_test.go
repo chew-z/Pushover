@@ -221,8 +221,8 @@ func TestHandleSendNotification(t *testing.T) {
 	}
 }
 
-// TestSendNotificationTTLZeroRejectedBySchema verifies the MCP schema rejects zero TTL before sending.
-func TestSendNotificationTTLZeroRejectedBySchema(t *testing.T) {
+// TestSendNotificationSchemaValidation verifies MCP validation rejects invalid notification arguments before sending.
+func TestSendNotificationSchemaValidation(t *testing.T) {
 	mock := &MockPushoverClient{}
 	swapNewPushoverClient(t, mock)
 
@@ -245,19 +245,31 @@ func TestSendNotificationTTLZeroRejectedBySchema(t *testing.T) {
 		t.Fatalf("Initialize() error = %v", err)
 	}
 
-	result, err := mcpClient.CallTool(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name:      "send_notification",
-			Arguments: map[string]any{"message": "test", "ttl": 0},
-		},
-	})
-	if err != nil {
-		t.Fatalf("CallTool() error = %v", err)
+	testCases := []struct {
+		name      string
+		arguments map[string]any
+	}{
+		{"TTL zero", map[string]any{"message": "test", "ttl": 0}},
+		{"expire exceeds maximum", map[string]any{"message": "test", "expire": maxExpireSeconds + 1}},
 	}
-	if !result.IsError {
-		t.Fatal("CallTool() accepted ttl 0")
-	}
-	if mock.lastMessage != nil {
-		t.Fatalf("mock received a message: %#v", mock.lastMessage)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := mcpClient.CallTool(ctx, mcp.CallToolRequest{
+				Params: mcp.CallToolParams{
+					Name:      "send_notification",
+					Arguments: tc.arguments,
+				},
+			})
+			if err != nil {
+				t.Fatalf("CallTool() error = %v", err)
+			}
+			if !result.IsError {
+				t.Fatal("CallTool() accepted invalid arguments")
+			}
+			if mock.lastMessage != nil {
+				t.Fatalf("mock received a message: %#v", mock.lastMessage)
+			}
+		})
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -49,6 +50,21 @@ func TestMCPConfigValidationExistingRules(t *testing.T) {
 	cfg.PushoverDefaultPriority = 3
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("invalid priority accepted")
+	}
+}
+
+// TestMCPConfigRejectsExpireAboveMaximum verifies the configured Pushover expiration limit.
+func TestMCPConfigRejectsExpireAboveMaximum(t *testing.T) {
+	t.Setenv("APP_KEY", "app-key")
+	t.Setenv("RECIPIENT_KEY", "recipient-key")
+	t.Setenv("PUSHOVER_AUTH_ENABLED", "false")
+	t.Setenv("PUSHOVER_MCP_OAUTH", "false")
+	t.Setenv("PUSHOVER_PRIORITY", "0")
+	t.Setenv("PUSHOVER_EXPIRE", strconv.Itoa(maxExpireSeconds+1))
+
+	_, err := NewMCPConfig(false)
+	if err == nil || !strings.Contains(err.Error(), "PUSHOVER_EXPIRE") {
+		t.Fatalf("NewMCPConfig() error = %v, want PUSHOVER_EXPIRE limit error", err)
 	}
 }
 

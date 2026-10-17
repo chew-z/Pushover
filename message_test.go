@@ -115,6 +115,40 @@ func TestCreateMessageTTL(t *testing.T) {
 	}
 }
 
+// TestCreateMessageExpireLimit verifies Pushover's maximum emergency expiration period.
+func TestCreateMessageExpireLimit(t *testing.T) {
+	testCases := []struct {
+		name         string
+		configExpire int
+		cliExpire    int
+		wantExpire   int
+		wantError    string
+	}{
+		{"CLI maximum", 0, maxExpireSeconds, maxExpireSeconds, ""},
+		{"CLI exceeds maximum", 0, maxExpireSeconds + 1, 0, "expire must be at most 10800 seconds"},
+		{"config fallback maximum", maxExpireSeconds, 0, maxExpireSeconds, ""},
+		{"config fallback exceeds maximum", maxExpireSeconds + 1, 0, 0, "expire must be at most 10800 seconds"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			message, err := CreateMessage("test", "", Config{ExpireTime: tc.configExpire}, &CLIArgs{ExpireTime: tc.cliExpire})
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("CreateMessage() error = %v, want %q", err, tc.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CreateMessage() error = %v", err)
+			}
+			if message.Expire != time.Duration(tc.wantExpire)*time.Second {
+				t.Errorf("Expire = %v, want %v", message.Expire, time.Duration(tc.wantExpire)*time.Second)
+			}
+		})
+	}
+}
+
 // TestCreateMessageTimestamp verifies optional timestamp validation and propagation.
 func TestCreateMessageTimestamp(t *testing.T) {
 	testCases := []struct {

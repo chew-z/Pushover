@@ -10,6 +10,7 @@ Read the file that matches the task before working, and store new guidance there
 | Where it stands: toolchain, health, recent changes | `docs/STATUS.md` |
 | Defects, debt, pending decisions (check before debugging) | `docs/OPEN_ITEMS.md` |
 | Deploying and operating: environment, build, nginx, systemd, clients, troubleshooting | `docs/OPERATIONS.md` |
+| Using Pushover from other projects: connect, tools, CLI, and recipes | `docs/USING.md` |
 | Go conventions and house rules (read before editing Go) | `./GOLANG.md` |
 | Code navigation and diagnostics (gopls) | `./LSP.md` |
 | External package documentation (godoc MCP) | `./GODOC.md` |

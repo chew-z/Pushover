@@ -25,8 +25,9 @@ tags: [status]
 
 ## Health
 
-- `task check` (fmt:check + vet + lint:ci + test:short) passes as of 2026-10-18.
-- `task build` produces `bin/pushover` with the version injected from `git describe` (`Taskfile.yml:13`, `Taskfile.yml:30-40`).
+- `task check` (fmt:check + vet + lint:ci + lint:md + test:short with `-race`) passes as of 2026-10-18.
+- `task build` produces `bin/pushover` with the version injected from `git describe` and rebuilds when that version changes (`Taskfile.yml:13`, `Taskfile.yml:30-47`).
+  No tag exists yet, so the version is a commit hash until `v1.0.0` is created.
 
 ## Deployment
 
@@ -38,6 +39,11 @@ The static Trading token still works.
 
 ## Recent changes
 
+- 2026-10-18 — Week-in-review fixes. `d505362` reports delivery honestly when Pushover omits quota headers;
+  `5fc5e59` makes configuration fail closed, validates it on the CLI paths, and refuses misspelled subcommands;
+  `e731dec` adds rate-limit and wrong-secret tests, bounds login CPU with a 4-slot semaphore, and fixes the consent text;
+  `6e69f6b` puts `-race` and `lint:md` in the gate, aligns CI build flags, and generates help from the flag set.
+  Behavior change: a malformed `.env` value now stops startup, and an explicit `PUSHOVER_EXPIRE`/`PUSHOVER_RETRY` is no longer replaced by a default.
 - 2026-10-18 — `8bd47eb` added Pushover Glances through the `send_glance` MCP tool and `glance` CLI subcommand.
 - 2026-10-17 — `1ea1849`, `0a11331`, `f2aa2ef`, and `43ea5f4` added OAuth connector authentication and nginx deployment configuration.
 - 2026-10-17 — `94dcdd3`, `84361f2`, `2da81b3`, `e5a30af`, and `e50ebfe` added cancel, attachments, schemas, expiry caps, and priority zero.

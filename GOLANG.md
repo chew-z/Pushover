@@ -57,9 +57,9 @@ Tests use the standard library and a local mock implementing `PushoverClient`; t
 
 ## Project conventions
 
-- **Flat package.** All Go files stay in one `package main` at the repository root, split by concern.
-  Introduce `cmd/` and `internal/` only if real subsystems appear.
-- **CLI over environment over defaults.** `CreateMessage` applies this order (`pushover.go:61`).
+- **Flat package with one subpackage.** All Go files stay in one `package main` at the repository root, split by concern.
+  The only subpackage is `internal/oauth`, the OAuth server copied from Alerts; add another only if a real subsystem appears.
+- **CLI over environment over defaults.** `CreateMessage` applies this order (`pushover.go:70`).
   `CLIArgs.PrioritySet` preserves whether a priority was supplied, so an explicit priority, including `-p 0`,
   overrides `PUSHOVER_PRIORITY`.
 - **MCP input constraints belong in the tool schema.** `server.WithInputSchemaValidation()` is enabled
@@ -67,7 +67,8 @@ Tests use the standard library and a local mock implementing `PushoverClient`; t
 - **STDIO logging goes to stderr.** JSON `slog` writes to stderr (`logging.go:27`) because stdout carries
   JSON-RPC frames in STDIO transport; never print logs to stdout there.
 - **JWT details.** HS256 only, issuer `pushover-mcp`, audience `pushover-mcp-user`, 60-second leeway
-  (`auth.go:102`). Authentication is enforced only for HTTP requests (`mcp_server.go:99`); STDIO is trusted.
+  (`auth.go:91`). Authentication is enforced only for HTTP requests, by `protectMCP` wrapped around the MCP endpoint
+  (`auth.go:123`, `http_server.go:60`); STDIO is trusted.
 - **Version injection.** `main.version` must stay a string variable so `-ldflags "-X main.version=..."`
   works (`main.go:11`); a constant silently ignores the linker flag.
 - **Deliberate lint exclusion.** `.golangci.yml` excludes `errcheck` for stdout/stderr writes,

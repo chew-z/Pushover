@@ -61,7 +61,8 @@ STDIO does not traverse `protectMCP`, so HTTP bearer authentication does not app
 
 For `-transport http`, the same setup creates `HTTPServerManager` with the endpoint path and `copyActor` context hook (`mcp_server.go:157-160`, `http_server.go:34-46`).
 The mux registers that endpoint behind `protectMCP`, registers open health and capability handlers, and mounts OAuth handlers only when OAuth is enabled (`http_server.go:47-70`).
-The HTTP server applies configured read, write, and idle timeouts, and its CORS wrapper exposes `WWW-Authenticate` to browsers (`http_server.go:73-100`, `http_server.go:180-198`).
+The HTTP server applies the configured timeout to reads and writes and twice that value to idle connections (`http_server.go:79`),
+and its CORS wrapper exposes `WWW-Authenticate` to browsers (`http_server.go:73-100`, `http_server.go:180-198`).
 The nginx configuration forwards `/pushover/` and preserves the OAuth well-known paths (`deploy/nginx-pushover.conf:19-53`).
 
 ## HTTP routes and modes
@@ -96,6 +97,9 @@ Authentication uses the configured secret to parse an HS256 bearer JWT with a re
 The profile rows above are selected by `newAuthGuard` (`auth.go:101-119`, `internal/oauth/config.go:27-41`).
 `protectMCP` accepts a token only when issuer and audience match a configured pair, and requires exact scope for the OAuth pair (`auth.go:121-150`).
 
+Validation is stateless: `protectMCP` never consults the store, so an access token or a static token cannot be revoked before it expires.
+Rotating `PUSHOVER_AUTH_SECRET_KEY` and restarting is the only kill switch, and it invalidates every token at once.
+The static token lifetime defaults to 744 hours (`mcp_cli.go:70`); keep it short or accept that a leaked token is valid until then.
 Missing, malformed, expired, or unmatched tokens receive HTTP 401 with `WWW-Authenticate: Bearer` and `error="invalid_token"` (`auth.go:123-150`, `auth.go:163-176`).
 When OAuth is configured, that challenge also names the RFC 9728 `resource_metadata` URL and required scope (`auth.go:163-169`, `internal/oauth/oauth_metadata.go:97-140`).
 A token matching the OAuth issuer and resource but lacking the required scope receives HTTP 403 and `error="insufficient_scope"` (`auth.go:136-143`).

@@ -84,7 +84,7 @@ StandardOutput=append:/var/log/Pushover.log
 StandardError=append:/var/log/Pushover.log
 Environment=APP_KEY=<pushover-application-key>
 Environment=RECIPIENT_KEY=<pushover-recipient-or-group-key>
-Environment=PUSHOVER_HTTP_ADDRESS=:8092
+Environment=PUSHOVER_HTTP_ADDRESS=127.0.0.1:8092
 Environment=PUSHOVER_HTTP_STATELESS=true
 Environment=PUSHOVER_MCP_OAUTH=true
 Environment=PUSHOVER_MCP_ISSUER=https://karma.rrj.pl/pushover

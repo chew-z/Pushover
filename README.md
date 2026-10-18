@@ -121,6 +121,9 @@ PUSHOVER_EXPIRE=180
 
 # Emergency notification (requires acknowledgment)
 ./bin/pushover -m "Server down!" -t "EMERGENCY" -p 2 -e 300
+
+# Cancel emergency notification retries
+./bin/pushover cancel -receipt RECEIPT
 ```
 
 #### Command Line Options
@@ -309,6 +312,14 @@ Send push notifications via Pushover
 - `timestamp` (optional): Unix timestamp in seconds to display (min 1)
 - `expire` (optional): Seconds Pushover keeps retrying a priority 2 notification (1–10800). Priority 2 requires both `retry` and `expire`.
 - `retry` (optional): Seconds between retries for a priority 2 notification (30–86400). Priority 2 requires both `retry` and `expire`.
+
+#### `cancel_emergency`
+
+Cancel retries of an emergency (priority 2) notification by its receipt.
+
+**Parameters:**
+
+- `receipt` (required): Receipt returned when the emergency notification was sent (30 alphanumeric characters)
 
 ## Development
 

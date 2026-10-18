@@ -691,6 +691,9 @@ func TestHasSubcommand(t *testing.T) {
 	if sub, ok := hasSubcommand([]string{"pushover", "mcp"}); !ok || sub != "mcp" {
 		t.Errorf("got (%q, %v), want (mcp, true)", sub, ok)
 	}
+	if sub, ok := hasSubcommand([]string{"pushover", "cancel"}); !ok || sub != "cancel" {
+		t.Errorf("got (%q, %v), want (cancel, true)", sub, ok)
+	}
 	if _, ok := hasSubcommand([]string{"pushover", "unknown"}); ok {
 		t.Error("Expected false for unknown subcommand")
 	}

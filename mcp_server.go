@@ -89,6 +89,19 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 		),
 		wrapWithLogging(handleSendNotification, "send_notification", config),
 	)
+	mcpServer.AddTool(
+		mcp.NewTool("cancel_emergency",
+			mcp.WithDescription("Cancel retries of an emergency (priority 2) notification by its receipt"),
+			mcp.WithString("receipt",
+				mcp.Description("Receipt returned when the emergency notification was sent (30 alphanumeric characters)"),
+				mcp.Required(),
+				mcp.Pattern(receiptPatternString),
+				mcp.MinLength(30),
+				mcp.MaxLength(30),
+			),
+		),
+		wrapWithLogging(handleCancelEmergency, "cancel_emergency", config),
+	)
 
 	return mcpServer
 }
@@ -226,4 +239,36 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 
 	actor, _ := actorFrom(ctx)
 	return mcp.NewToolResultText(formatSendResult(response, actor)), nil
+}
+
+// handleCancelEmergency handles the cancel_emergency tool.
+func handleCancelEmergency(ctx context.Context, request mcp.CallToolRequest, config *MCPConfig) (*mcp.CallToolResult, error) {
+	receipt, err := request.RequireString("receipt")
+	if err != nil {
+		return mcp.NewToolResultError("Receipt parameter is required"), nil
+	}
+	if err := validateReceipt(receipt); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid receipt: %v", err)), nil
+	}
+
+	client, _, err := newPushoverClient(config.ToLegacyConfig())
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to create Pushover client: %v", err)), nil
+	}
+	if _, err := client.CancelEmergencyNotification(receipt); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to cancel emergency notification: %v", err)), nil
+	}
+
+	actor, _ := actorFrom(ctx)
+	return mcp.NewToolResultText(formatCancelResult(receipt, actor)), nil
+}
+
+// formatCancelResult formats a successful emergency notification cancellation result.
+func formatCancelResult(receipt, actor string) string {
+	//nolint:misspell // The user-facing cancellation text is specified with two Ls.
+	result := "Emergency notification " + receipt + " cancelled"
+	if actor != "" {
+		result += " (sent by " + actor + ")"
+	}
+	return result
 }

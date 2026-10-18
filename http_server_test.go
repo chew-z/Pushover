@@ -65,27 +65,57 @@ func TestCapabilitiesReflectRegisteredTools(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode capabilities response: %v", err)
 	}
-	if len(payload.Tools) != 1 {
-		t.Fatalf("tool count = %d, want 1", len(payload.Tools))
+	if len(payload.Tools) != 2 {
+		t.Fatalf("tool count = %d, want 2", len(payload.Tools))
 	}
-	tool := payload.Tools[0]
-	if tool.Name != "send_notification" {
-		t.Fatalf("tool name = %q, want send_notification", tool.Name)
+	var sendTool, cancelTool *struct {
+		Name        string `json:"name"`
+		InputSchema struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+			Required   []string                   `json:"required"`
+		} `json:"inputSchema"`
+	}
+	for index := range payload.Tools {
+		switch payload.Tools[index].Name {
+		case "send_notification":
+			sendTool = &payload.Tools[index]
+		case "cancel_emergency":
+			cancelTool = &payload.Tools[index]
+		}
+	}
+	if sendTool == nil {
+		t.Fatal("send_notification is not listed")
+	}
+	if cancelTool == nil {
+		t.Fatal("cancel_emergency is not listed")
 	}
 	for _, property := range []string{"url", "ttl", "retry"} {
-		if _, ok := tool.InputSchema.Properties[property]; !ok {
+		if _, ok := sendTool.InputSchema.Properties[property]; !ok {
 			t.Errorf("inputSchema.properties is missing %q", property)
 		}
 	}
 	messageRequired := false
-	for _, required := range tool.InputSchema.Required {
+	for _, required := range sendTool.InputSchema.Required {
 		if required == "message" {
 			messageRequired = true
 			break
 		}
 	}
 	if !messageRequired {
-		t.Errorf("inputSchema.required = %v, want message", tool.InputSchema.Required)
+		t.Errorf("inputSchema.required = %v, want message", sendTool.InputSchema.Required)
+	}
+	if _, ok := cancelTool.InputSchema.Properties["receipt"]; !ok {
+		t.Error("cancel_emergency inputSchema.properties is missing receipt")
+	}
+	receiptRequired := false
+	for _, required := range cancelTool.InputSchema.Required {
+		if required == "receipt" {
+			receiptRequired = true
+			break
+		}
+	}
+	if !receiptRequired {
+		t.Errorf("cancel_emergency inputSchema.required = %v, want receipt", cancelTool.InputSchema.Required)
 	}
 }
 

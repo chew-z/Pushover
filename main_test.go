@@ -26,7 +26,8 @@ type MockPushoverClient struct {
 	lastReceipt         string
 	lastGlance          *pushover.Glance
 	lastGlanceRecipient *pushover.Recipient
-	shouldError         bool
+	// err, when non-nil, is returned by every method.
+	err error
 	// response supplies the configured SendMessage response.
 	response *pushover.Response
 }
@@ -36,8 +37,8 @@ func (m *MockPushoverClient) SendMessage(message *pushover.Message, recipient *p
 	m.lastMessage = message
 	m.lastRecipient = recipient
 
-	if m.shouldError {
-		return nil, errors.New("mock error")
+	if m.err != nil {
+		return nil, m.err
 	}
 	if m.response != nil {
 		return m.response, nil
@@ -50,8 +51,8 @@ func (m *MockPushoverClient) SendMessage(message *pushover.Message, recipient *p
 func (m *MockPushoverClient) CancelEmergencyNotification(receipt string) (*pushover.Response, error) {
 	m.lastReceipt = receipt
 
-	if m.shouldError {
-		return nil, errors.New("mock error")
+	if m.err != nil {
+		return nil, m.err
 	}
 
 	return &pushover.Response{Status: 1}, nil
@@ -62,8 +63,8 @@ func (m *MockPushoverClient) SendGlanceUpdate(glance *pushover.Glance, recipient
 	m.lastGlance = glance
 	m.lastGlanceRecipient = recipient
 
-	if m.shouldError {
-		return nil, errors.New("mock error")
+	if m.err != nil {
+		return nil, m.err
 	}
 
 	return &pushover.Response{Status: 1}, nil
@@ -459,7 +460,7 @@ func TestNewMCPConfigFromEnv(t *testing.T) {
 // --- Run error paths ---
 
 func TestRun_SendFailure(t *testing.T) {
-	mockClient := &MockPushoverClient{shouldError: true}
+	mockClient := &MockPushoverClient{err: errors.New("mock error")}
 	args := []string{"pushover", "-m", "test"}
 
 	err := Run(args, mockClient)
@@ -468,6 +469,16 @@ func TestRun_SendFailure(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to send message") {
 		t.Errorf("Expected send failure error, got: %v", err)
+	}
+}
+
+// TestRun_InvalidHeadersStillDelivered verifies ErrInvalidHeaders is not reported as a send failure.
+func TestRun_InvalidHeadersStillDelivered(t *testing.T) {
+	mockClient := &MockPushoverClient{err: pushover.ErrInvalidHeaders}
+	args := []string{"pushover", "-m", "test"}
+
+	if err := Run(args, mockClient); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
 	}
 }
 
@@ -514,7 +525,7 @@ func TestRun_ClientCreationFailure(t *testing.T) {
 // --- SendNotification ---
 
 func TestSendNotification_Error(t *testing.T) {
-	mockClient := &MockPushoverClient{shouldError: true}
+	mockClient := &MockPushoverClient{err: errors.New("mock error")}
 	msg := pushover.NewMessageWithTitle("test", "")
 	recipient := pushover.NewRecipient("dummy")
 

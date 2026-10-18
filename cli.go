@@ -220,7 +220,7 @@ func Run(args []string, client PushoverClient) error {
 
 	// Send the notification
 	response, err := client.SendMessage(pushMessage, recipient)
-	if err != nil {
+	if err != nil && !errors.Is(err, pushover.ErrInvalidHeaders) {
 		return fmt.Errorf("failed to send message: %w", err)
 	}
 

@@ -263,7 +263,7 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	}
 
 	response, err := client.SendMessage(pushMessage, recipient)
-	if err != nil {
+	if err != nil && !errors.Is(err, pushover.ErrInvalidHeaders) {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to send notification: %v", err)), nil
 	}
 
@@ -318,7 +318,7 @@ func handleSendGlance(ctx context.Context, request mcp.CallToolRequest, config *
 func formatCancelResult(receipt, actor string) string {
 	result := "Emergency notification " + receipt + " canceled"
 	if actor != "" {
-		result += " (sent by " + actor + ")"
+		result += " (canceled by " + actor + ")"
 	}
 	return result
 }

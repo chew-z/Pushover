@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -19,7 +20,7 @@ func TestHandleCancelEmergency(t *testing.T) {
 		want  string
 	}{
 		{name: "without actor", want: "Emergency notification uQiRzpo4DXghDmr9QzzfQu27cmVRsG canceled"},
-		{name: "with actor", actor: "alice", want: "Emergency notification uQiRzpo4DXghDmr9QzzfQu27cmVRsG canceled (sent by alice)"},
+		{name: "with actor", actor: "alice", want: "Emergency notification uQiRzpo4DXghDmr9QzzfQu27cmVRsG canceled (canceled by alice)"},
 	}
 
 	for _, tc := range testCases {
@@ -87,7 +88,7 @@ func TestHandleCancelEmergencyBadReceipt(t *testing.T) {
 
 // TestHandleCancelEmergencyAPIError verifies client failures return a tool error.
 func TestHandleCancelEmergencyAPIError(t *testing.T) {
-	mock := &MockPushoverClient{shouldError: true}
+	mock := &MockPushoverClient{err: errors.New("mock error")}
 	swapNewPushoverClient(t, mock)
 	receipt := strings.Repeat("a", 30)
 	request := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{"receipt": receipt}}}
@@ -152,7 +153,7 @@ func TestRunCancelCommandBadReceipt(t *testing.T) {
 
 // TestRunCancelCommandAPIError verifies CLI client failures are wrapped.
 func TestRunCancelCommandAPIError(t *testing.T) {
-	mock := &MockPushoverClient{shouldError: true}
+	mock := &MockPushoverClient{err: errors.New("mock error")}
 	swapNewPushoverClient(t, mock)
 	var stdout, stderr bytes.Buffer
 

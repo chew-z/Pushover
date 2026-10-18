@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -18,7 +19,7 @@ func TestHandleSendNotification(t *testing.T) {
 		name            string
 		arguments       map[string]any
 		defaultPriority int
-		shouldError     bool
+		err             error
 		wantError       bool
 		errorText       string
 		wantMessage     string
@@ -32,7 +33,7 @@ func TestHandleSendNotification(t *testing.T) {
 		wantNoMessage   bool
 		response        *pushover.Response
 		actor           string
-		wantResultText  bool
+		want            string
 	}{
 		{
 			name:        "successful send",
@@ -46,11 +47,11 @@ func TestHandleSendNotification(t *testing.T) {
 			errorText: "Message parameter is required",
 		},
 		{
-			name:        "mock send failure",
-			arguments:   map[string]any{"message": "test message"},
-			shouldError: true,
-			wantError:   true,
-			errorText:   "Failed to send notification",
+			name:      "mock send failure",
+			arguments: map[string]any{"message": "test message"},
+			err:       errors.New("mock error"),
+			wantError: true,
+			errorText: "Failed to send notification",
 		},
 		{
 			name:            "explicit priority zero",
@@ -128,21 +129,29 @@ func TestHandleSendNotification(t *testing.T) {
 					NextReset: time.Date(2026, time.November, 1, 0, 0, 0, 0, time.UTC),
 				},
 			},
-			wantResultText: true,
+			want: "Notification sent. Receipt: R. Quota: 7496/10000 remaining, resets 2026-11-01T00:00:00Z",
 		},
 		{
-			name:           "actor in result",
-			arguments:      map[string]any{"message": "test message"},
-			wantMessage:    "test message",
-			response:       &pushover.Response{Receipt: "R"},
-			actor:          "alice",
-			wantResultText: true,
+			name:        "actor in result",
+			arguments:   map[string]any{"message": "test message"},
+			wantMessage: "test message",
+			response:    &pushover.Response{Receipt: "R"},
+			actor:       "alice",
+			want:        "Notification sent. Receipt: R (sent by alice)",
+		},
+		{
+			name:        "invalid headers still delivered",
+			arguments:   map[string]any{"message": "test message"},
+			err:         pushover.ErrInvalidHeaders,
+			response:    nil,
+			wantMessage: "test message",
+			want:        "Notification sent.",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			mock := &MockPushoverClient{shouldError: tc.shouldError, response: tc.response}
+			mock := &MockPushoverClient{err: tc.err, response: tc.response}
 			swapNewPushoverClient(t, mock)
 
 			config := newTestMCPConfig()
@@ -169,7 +178,7 @@ func TestHandleSendNotification(t *testing.T) {
 			if tc.errorText != "" && !strings.Contains(fmt.Sprint(result), tc.errorText) {
 				t.Fatalf("result = %v, want text %q", result, tc.errorText)
 			}
-			if tc.wantResultText {
+			if tc.want != "" {
 				if len(result.Content) != 1 {
 					t.Fatalf("result content length = %d, want 1", len(result.Content))
 				}
@@ -177,9 +186,8 @@ func TestHandleSendNotification(t *testing.T) {
 				if !ok {
 					t.Fatalf("result content = %T, want mcp.TextContent", result.Content[0])
 				}
-				want := formatSendResult(tc.response, tc.actor)
-				if content.Text != want {
-					t.Errorf("result text = %q, want %q", content.Text, want)
+				if content.Text != tc.want {
+					t.Errorf("result text = %q, want %q", content.Text, tc.want)
 				}
 			}
 			if tc.wantNoMessage {

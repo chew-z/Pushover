@@ -1,280 +1,214 @@
 # Pushover
 
-A versatile Go application that serves as both a command-line utility and an MCP (Model Context Protocol) server
-for sending push notifications via Pushover.
-Features comprehensive configuration options, JWT authentication, and dual transport modes.
+`pushover` sends Pushover notifications from a CLI or exposes the same operations to MCP clients.
+The binary provides the default notification command and the `mcp`, `cancel`, and `glance` subcommands.
 
-## Features
+For implementation and HTTP-authentication design, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+For deployment, environment variables, nginx, systemd, and connector setup, see [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
-### CLI Mode
+## Build and install
 
-- Send notifications with custom messages, titles, and priorities
-- Target specific devices with custom sounds and expiration times
-- Extensive command-line options with backwards compatibility
-- Environment variable configuration with `.env` file support
-
-### MCP Server Mode
-
-- **STDIO Transport**: Perfect for AI system integrations
-- **HTTP Transport**: RESTful API with CORS support
-- **JWT Authentication**: Secure token-based access control
-- **Health Endpoints**: Monitoring and capabilities discovery
-- **Dual Mode**: Same binary supports both CLI and MCP server functionality
-
-## Installation
-
-### Build from Source
-
-```bash
+```sh
 git clone <repository-url>
 cd Pushover
-go build -o bin/pushover .
+task build
 ```
 
-### Using Taskfile
+`task build` writes `bin/pushover` with a version injected from Git.
+Use `task build --force` before deployment when Task considers the output current.
 
-```bash
-task build    # Build with version injection
-task install  # Install system-wide
-task clean    # Clean build artifacts
-```
+| Command | Purpose |
+| --- | --- |
+| `task build` | Build `bin/pushover`. |
+| `task check` | Run `fmt:check`, `vet`, `lint:ci`, and `test:short`. |
+| `task test` | Run the full test suite with verbose output. |
+| `task test:short` | Run tests without verbose output. |
+| `task lint` | Run golangci-lint with automatic fixes. |
+| `task lint:ci` | Run golangci-lint without changes. |
+| `task fmt` | Format Go files. |
+| `task lint:md` | Lint Markdown. |
+| `task install` | Copy the binary to `/usr/local/bin`. |
+| `task clean` | Remove build artifacts. |
 
 ## Configuration
 
-### Required Environment Variables
+`APP_KEY` and `RECIPIENT_KEY` are required for notification, cancellation, Glance, and MCP server operation.
+The default HTTP address is `127.0.0.1:8080`, and the default MCP path is `/mcp`.
+The default CORS-origin list is empty, so no origin is allowed unless `PUSHOVER_HTTP_CORS_ORIGINS` is set.
 
 ```env
-APP_KEY=your_pushover_app_key_here
-RECIPIENT_KEY=your_pushover_recipient_key_here
+APP_KEY=<pushover-application-key>
+RECIPIENT_KEY=<pushover-recipient-or-group-key>
 ```
 
-### Optional Environment Variables
+The program autoloads `.env` without overwriting existing environment variables.
+The complete environment-variable reference, including OAuth configuration, is in [docs/OPERATIONS.md](docs/OPERATIONS.md#configuration).
 
-```env
-# Pushover Settings
-DEVICE_NAME=iPhone                    # Target device
-DEFAULT_TITLE=Notification            # Default message title
-PUSHOVER_PRIORITY=0                   # Priority (-2 to 2)
-PUSHOVER_SOUND=vibrate                # Notification sound
-PUSHOVER_EXPIRE=180                   # Expire time in seconds
+## CLI
 
-# MCP HTTP Server Settings
-PUSHOVER_HTTP_ADDRESS=:8080           # Server bind address
-PUSHOVER_HTTP_PATH=/mcp               # Endpoint path
-PUSHOVER_HTTP_STATELESS=false         # Session management
-PUSHOVER_HTTP_HEARTBEAT=30s           # Heartbeat interval
-PUSHOVER_HTTP_TIMEOUT=30s             # Request timeout
-PUSHOVER_HTTP_CORS_ENABLED=true       # Enable CORS
-PUSHOVER_HTTP_CORS_ORIGINS=*          # Allowed origins (comma-separated)
+The default command sends one notification.
+It accepts `pushover <message> [title]` as a positional fallback.
 
-# Authentication Settings
-PUSHOVER_AUTH_ENABLED=false           # Enable JWT authentication
-PUSHOVER_AUTH_SECRET_KEY=your_secret  # JWT signing secret
+```sh
+bin/pushover -m "Build completed" -t "CI" -p 1 -s siren
+bin/pushover cancel -receipt <receipt>
+bin/pushover glance -title "Widgets Sold" -count 42 -percent 75
 ```
 
-### Configuration File
+### `pushover`
 
-Create a `.env` file in your project directory:
+| Flag | Type and default | Meaning |
+| --- | --- | --- |
+| `-m`, `-message` | string; empty | Required message, unless the first positional argument supplies it. |
+| `-t`, `-title` | string; empty | Notification title, or the `DEFAULT_TITLE` value when omitted. |
+| `-p`, `-priority` | integer; `0` | `-2` through `2`; when omitted, the configured default is used; an explicit `0` overrides it. |
+| `-s`, `-sound` | string; empty | Sound name, or the configured sound when omitted. |
+| `-d`, `-device` | string; empty | Target device, or `DEVICE_NAME` when omitted. |
+| `-e`, `-expire` | integer; `0` | Emergency retry lifetime in seconds; a zero value uses the configured default; maximum `10800`. |
+| `-r`, `-retry` | integer; `0` | Emergency retry interval in seconds; a zero value uses the configured default; minimum `30`. |
+| `-attachment` | string; empty | Local PNG, JPEG, GIF, or WebP file; maximum 2.5 MiB. |
+| `-attachment-type` | string; empty | Optional expected MIME type; must match detected content when supplied. |
+| `-url` | string; empty | Supplementary URL; maximum 512 characters. |
+| `-url-title` | string; empty | URL label; maximum 100 characters and requires `-url`. |
+| `-html` | boolean; `false` | Render the message as HTML. |
+| `-monospace` | boolean; `false` | Render the message in monospace; mutually exclusive with `-html`. |
+| `-ttl` | integer; `0` | Delete after this many seconds; zero is unset and other values below 1 are invalid. |
+| `-timestamp` | integer; `0` | Display this Unix timestamp; zero is unset and negative values are invalid. |
+| `-h`, `-help` | boolean; `false` | Print help. |
+| `-version` | boolean; `false` | Print the binary version. |
 
-```env
-APP_KEY=your_app_key_here
-RECIPIENT_KEY=your_recipient_key_here
-DEVICE_NAME=iPhone
-DEFAULT_TITLE=Notification
-PUSHOVER_PRIORITY=0
-PUSHOVER_SOUND=pushover
-PUSHOVER_EXPIRE=180
+`PUSHOVER_PRIORITY` defaults to `-1`, `PUSHOVER_SOUND` defaults to `vibrate`, `PUSHOVER_EXPIRE` defaults to 180 seconds, and `PUSHOVER_RETRY` defaults to 60 seconds.
+`-html` and `-monospace` are mutually exclusive.
+Emergency priority requires appropriate expiry and retry values.
+
+### `pushover cancel`
+
+`cancel` stops retries for an emergency notification.
+
+| Flag | Type and default | Meaning |
+| --- | --- | --- |
+| `-receipt` | string; empty | Required 30-character alphanumeric emergency receipt. |
+| `-h`, `-help` | boolean; `false` | Print help. |
+
+### `pushover glance`
+
+`glance` sends an Apple Watch complication update.
+Use it only for Apple Watch complications, wait at least 20 minutes between updates, and send at most 50 each day.
+An update can take up to 10 minutes to appear.
+
+| Flag | Type and default | Meaning |
+| --- | --- | --- |
+| `-title` | string; empty | Title; an explicitly empty value clears it. |
+| `-text` | string; empty | Main text; an explicitly empty value clears it. |
+| `-subtext` | string; empty | Secondary text; an explicitly empty value clears it. |
+| `-count` | integer; `0` | Integer count, including negative values. |
+| `-percent` | integer; `0` | Integer percentage from 0 through 100. |
+| `-device` | string; empty | Target device. |
+| `-h`, `-help` | boolean; `false` | Print help. |
+
+Supply at least one of `-title`, `-text`, `-subtext`, `-count`, or `-percent`.
+Only supplied flags are sent, so `-count 0` is distinct from omitting `-count`.
+
+## MCP server
+
+Start an MCP server over STDIO or streamable HTTP:
+
+```sh
+bin/pushover mcp
+bin/pushover mcp -transport http
 ```
 
-## Usage
+### `pushover mcp`
 
-### Getting Help
+| Flag | Type and default | Meaning |
+| --- | --- | --- |
+| `-transport` | string; `stdio` | Transport: `stdio` or `http`. |
+| `-auth-enabled` | boolean; `false` | Require bearer authentication for HTTP. |
+| `-generate-token` | boolean; `false` | Print a static bearer token and exit. |
+| `-token-username` | string; `admin` | Username embedded in a generated static token. |
+| `-token-ttl` | duration; `744h` | Lifetime for a generated static token. |
+| `-hash-password` | boolean; `false` | Prompt for and print an OAuth login-password hash. |
+| `-h`, `-help` | boolean; `false` | Print help. |
 
-```bash
-# Main help - shows both CLI usage and MCP subcommand
-./bin/pushover -h
+`-generate-token` and `-hash-password` cannot be combined.
+`-generate-token` requires `PUSHOVER_AUTH_SECRET_KEY` and supports Go duration syntax such as `24h`.
 
-# MCP-specific help - shows all MCP server options
-./bin/pushover mcp -h
+```sh
+PUSHOVER_AUTH_SECRET_KEY=<secret> \
+  bin/pushover mcp -generate-token -token-username <user> -token-ttl 24h
+
+bin/pushover mcp -hash-password
 ```
 
-### CLI Mode
+There is no HTTP token-generation endpoint.
 
-#### Basic Usage
+### Authentication modes
 
-```bash
-# Using flags
-./bin/pushover -m "Your task has completed" -t "Task Notification"
+- STDIO has no HTTP bearer-authentication layer.
+- HTTP is open when authentication is disabled.
+- Static bearer mode accepts a token generated with `-generate-token`.
+- OAuth mode accepts OAuth tokens and static bearer tokens.
 
-# Using positional arguments (backwards compatible)
-./bin/pushover "Your task has completed" "Task Notification"
-```
+For HTTP routes, token profiles, and challenges, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#authentication-and-actor-propagation).
+For production OAuth and client setup, see [docs/OPERATIONS.md](docs/OPERATIONS.md#connect-from-claude).
 
-#### Advanced Usage
+## MCP tools
 
-```bash
-# High priority with custom sound
-./bin/pushover -m "Critical alert" -t "System Alert" -p 1 -s siren
+### `send_notification`
 
-# Send to specific device with expiration
-./bin/pushover -m "Build completed" -d "iPhone" -e 3600
+`send_notification` sends one Pushover notification.
 
-# Emergency notification (requires acknowledgment)
-./bin/pushover -m "Server down!" -t "EMERGENCY" -p 2 -e 300
+| Parameter | Type and default | Constraints |
+| --- | --- | --- |
+| `message` | string; required | Maximum 1024 characters. |
+| `title` | string; empty | Optional title. |
+| `priority` | integer; configured default | `-2` through `2`; priority 2 requires retry and expiry. |
+| `sound` | string; configured default | Optional Pushover sound name. |
+| `device` | string; configured default | Optional target device. |
+| `expire` | integer; configured default | Priority-2 retry lifetime; 1 through 10800 seconds. |
+| `retry` | integer; configured default | Priority-2 retry interval; 30 through 86400 seconds. |
+| `url` | string; empty | Maximum 512 characters. |
+| `url_title` | string; empty | Maximum 100 characters; requires `url`. |
+| `html` | boolean; `false` | Mutually exclusive with `monospace`. |
+| `monospace` | boolean; `false` | Mutually exclusive with `html`. |
+| `ttl` | integer; unset | Minimum 1 second; ignored for priority 2. |
+| `timestamp` | integer; unset | Unix timestamp; minimum 1. |
+| `attachment_path` | string; empty | STDIO only; mutually exclusive with `attachment_base64`. |
+| `attachment_base64` | string; empty | Standard base64; maximum 2.5 MiB decoded or 3495256 encoded bytes. |
+| `attachment_type` | string; empty | Required with base64; optional with path; `image/png`, `image/jpeg`, `image/gif`, or `image/webp`. |
 
-# Cancel emergency notification retries
-./bin/pushover cancel -receipt RECEIPT
+An attachment path must be a nonempty regular file within the 2.5 MiB limit.
+The detected content type must be one of the allowed image types and must match `attachment_type` when supplied.
 
-# Update an Apple Watch complication Glance
-./bin/pushover glance -title "Widgets Sold" -count 42 -percent 75
-```
+### `cancel_emergency`
 
-#### Command Line Options
+`cancel_emergency` cancels retries for an emergency notification.
 
-```bash
--m, -message      Message to send (required)
--t, -title        Message title
--p, -priority     Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)
--s, -sound        Sound name (see sounds list below)
--e, -expire       Expire time in seconds for emergency messages (max 10800)
--r, -retry        Retry interval in seconds for emergency messages (min 30)
--d, -device       Target device name
--attachment       Image file to attach (png, jpeg, gif, webp; max 2.5 MiB)
--attachment-type  Expected attachment MIME type (optional)
--url              Supplementary URL shown with the notification
--url-title        Title for the supplementary URL (requires -url)
--html             Render the message as HTML
--monospace        Render the message in a monospace font
--ttl              Seconds until the notification is deleted (0 = unset)
--timestamp        Unix timestamp in seconds to display (0 = unset)
--h, -help         Show help
--version          Show version
-```
+| Parameter | Type and default | Constraints |
+| --- | --- | --- |
+| `receipt` | string; required | Exactly 30 alphanumeric characters. |
 
-#### Available Sounds
+### `send_glance`
 
-`pushover`, `bike`, `bugle`, `cashregister`, `classical`, `cosmic`, `falling`, `gamelan`,
-`incoming`, `intermission`, `magic`, `mechanical`, `pianobar`, `siren`, `spacealarm`, `tugboat`,
-`alien`, `climb`, `persistent`, `echo`, `updown`, `vibrate`, `none`
+`send_glance` sends an Apple Watch complication Glance update.
+At least one of `title`, `text`, `subtext`, `count`, or `percent` is required.
+An explicitly empty string clears a supplied text field.
 
-### MCP Server Mode
+| Parameter | Type and default | Constraints |
+| --- | --- | --- |
+| `title` | string; unset | Maximum 100 characters. |
+| `text` | string; unset | Maximum 100 characters. |
+| `subtext` | string; unset | Maximum 100 characters. |
+| `count` | integer; unset | Negative values are allowed. |
+| `percent` | integer; unset | 0 through 100. |
+| `device` | string; empty | Optional target device. |
 
-#### Getting Started
+Use Glances only for Apple Watch complications, wait at least 20 minutes between updates, and send at most 50 per day.
+Pushover can take up to 10 minutes to display an update.
 
-```bash
-# Show MCP-specific help
-./bin/pushover mcp -h
+## MCP client examples
 
-# Start MCP server (STDIO transport - default)
-./bin/pushover mcp
-
-# Start HTTP transport server
-./bin/pushover mcp -transport http
-```
-
-#### Command Line Flags
-
-```bash
--transport string        Transport mode: 'stdio' or 'http' (default: stdio)
--auth-enabled           Enable JWT authentication for HTTP transport
--generate-token         Generate a JWT token and exit
--token-expiration int   Token expiration in hours (default: 744 = 31 days)
--token-role string      Role for token generation (default: admin)
--token-user-id string   User ID for token generation (default: user1)
--token-username string  Username for token generation (default: admin)
-```
-
-#### STDIO Transport (Default)
-
-Perfect for AI systems and command-line integrations:
-
-```bash
-./bin/pushover mcp
-./bin/pushover mcp -transport stdio
-```
-
-#### HTTP Transport
-
-RESTful API with optional authentication:
-
-```bash
-# Basic HTTP server
-./bin/pushover mcp -transport http
-
-# With JWT authentication
-./bin/pushover mcp -transport http -auth-enabled
-```
-
-#### Authentication
-
-**Generate Token via Command Line:**
-
-```bash
-# Basic token generation
-PUSHOVER_AUTH_SECRET_KEY="your-secret-key" \
-./bin/pushover mcp -generate-token
-
-# Custom token with specific parameters
-PUSHOVER_AUTH_SECRET_KEY="your-secret-key" \
-./bin/pushover mcp -generate-token \
-  -token-user-id="api_user" \
-  -token-username="API User" \
-  -token-role="admin" \
-  -token-expiration=24
-```
-
-**Use Token in HTTP Requests:**
-
-```bash
-Authorization: Bearer <jwt_token>
-```
-
-**Generate Token via HTTP API:**
-
-```bash
-curl -X POST http://localhost:8080/generate-token \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": "test_user", "username": "Test User", "expires_in": 24}'
-```
-
-#### HTTP Endpoints
-
-**Health Check:**
-
-```bash
-curl http://localhost:8080/health
-```
-
-**Capabilities Discovery:**
-
-```bash
-curl http://localhost:8080/capabilities
-```
-
-**Send Notification:**
-
-```bash
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <jwt_token>" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "tools/call",
-    "params": {
-      "name": "send_notification",
-      "arguments": {
-        "message": "Hello from MCP!",
-        "title": "Test Notification",
-        "priority": "1"
-      }
-    }
-  }'
-```
-
-## MCP Integration
-
-### MCP Client Configuration
+Use STDIO locally:
 
 ```json
 {
@@ -283,179 +217,19 @@ curl -X POST http://localhost:8080/mcp \
       "command": "/path/to/pushover",
       "args": ["mcp", "-transport", "stdio"],
       "env": {
-        "APP_KEY": "your_app_key",
-        "RECIPIENT_KEY": "your_recipient_key"
+        "APP_KEY": "<pushover-application-key>",
+        "RECIPIENT_KEY": "<pushover-recipient-or-group-key>"
       }
     }
   }
 }
 ```
 
-### Available MCP Tools
+For remote Claude connectors, OAuth login, nginx paths, and a static-bearer alternative, use [docs/OPERATIONS.md](docs/OPERATIONS.md#connect-from-claude).
 
-#### `send_notification`
+## Pushover keys
 
-Send push notifications via Pushover
-
-**Parameters:**
-
-- `message` (required): Notification message text (max 1024 chars)
-- `title` (optional): Notification title
-- `priority` (optional): Priority level (-2 to 2). Priority 2 requires both `retry` and `expire`.
-- `device` (optional): Target device name  
-- `sound` (optional): Notification sound name
-- `attachment_path` (optional): Local path to an image file; refused over HTTP transport, stdio only; mutually exclusive with `attachment_base64`
-- `attachment_base64` (optional): Standard base64 image data (max 2.5 MiB decoded); requires `attachment_type`; mutually exclusive with `attachment_path`
-- `attachment_type` (optional): Expected image MIME type (`image/png`, `image/jpeg`, `image/gif`, or `image/webp`); required with `attachment_base64`, optional with `attachment_path` and must match the detected type
-- `url` (optional): Supplementary URL shown with the notification (max 512 chars)
-- `url_title` (optional): Title for the supplementary URL (max 100 chars; requires `url`)
-- `html` (optional): Render the message as HTML (mutually exclusive with `monospace`)
-- `monospace` (optional): Render the message in a monospace font (mutually exclusive with `html`)
-- `ttl` (optional): Seconds until the notification is deleted from devices (min 1; ignored for priority 2)
-- `timestamp` (optional): Unix timestamp in seconds to display (min 1)
-- `expire` (optional): Seconds Pushover keeps retrying a priority 2 notification (1–10800). Priority 2 requires both `retry` and `expire`.
-- `retry` (optional): Seconds between retries for a priority 2 notification (30–86400). Priority 2 requires both `retry` and `expire`.
-
-#### `cancel_emergency`
-
-Cancel retries of an emergency (priority 2) notification by its receipt.
-
-**Parameters:**
-
-- `receipt` (required): Receipt returned when the emergency notification was sent (30 alphanumeric characters)
-
-#### `send_glance`
-
-Update an Apple Watch complication Glance. Use Glances only for Apple Watch complications; wait at least 20 minutes
-between updates, send at most 50 per day, and allow up to 10 minutes for an update to appear. Passing `""` clears a
-string field.
-
-**Parameters:**
-
-- `title` (optional): Glance title (max 100 characters)
-- `text` (optional): Main Glance text (max 100 characters)
-- `subtext` (optional): Secondary Glance text (max 100 characters)
-- `count` (optional): Integer count, including negative values
-- `percent` (optional): Integer percentage from 0 through 100
-- `device` (optional): Target device name
-
-The equivalent CLI command is `pushover glance -title TITLE -text TEXT -subtext SUBTEXT -count COUNT -percent PERCENT -device DEVICE`.
-
-## Development
-
-### Build System
-
-```bash
-task build      # Build binary with version injection
-task test       # Run all tests
-task lint       # Run golangci-lint
-task fmt        # Format code
-task clean      # Clean build artifacts
-task install    # Install binary system-wide
-task check      # Full local gate (fmt + lint + test + build)
-```
-
-### Testing
-
-```bash
-# Run all tests with verbose output
-./run_test.sh
-
-# Run specific tests
-go test -v ./...
-go test -v -run TestFunctionName
-```
-
-### Code Quality
-
-```bash
-# Format code
-./run_format.sh
-
-# Run linter with fixes
-./run_lint.sh
-```
-
-### Testing MCP Functionality
-
-**STDIO Mode Testing:**
-
-```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | ./bin/pushover mcp -transport stdio
-```
-
-**HTTP Mode Testing:**
-
-```bash
-# Start server in background
-./bin/pushover mcp -transport http &
-
-# Test capabilities
-curl http://localhost:8080/capabilities
-
-# Test notification
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"send_notification","arguments":{"message":"Test"}}}'
-```
-
-## Getting Pushover Keys
-
-1. Create an account at [pushover.net](https://pushover.net)
-2. Register an application to get your `APP_KEY`
-3. Find your `RECIPIENT_KEY` in your user dashboard
-4. Optional: Register devices to get specific device names
-
-## Architecture
-
-### Design Principles
-
-- **Modular File Architecture**: Functionality split across focused files while maintaining single package design
-- **Interface-Based Design**: `PushoverClient` interface enables comprehensive mocking
-- **Dependency Injection**: Flexible testing and configuration
-- **Subcommand Structure**: Clean separation between CLI and MCP modes via `mcp` subcommand
-- **Dual Mode Operation**: Same binary supports CLI and MCP server modes
-- **Security First**: JWT authentication and input validation
-- **Separation of Concerns**: Each file has a single responsibility for specific functionality
-
-### Key Components
-
-- **`main.go`**: Simplified entry point and subcommand routing (45 lines)
-- **`pushover.go`**: Pushover client interface and implementation (93 lines)
-- **`cli.go`**: CLI argument parsing and main app logic (165 lines)
-- **`mcp_server.go`**: MCP server setup and handlers (194 lines)
-- **`mcp_cli.go`**: MCP subcommand argument parsing (127 lines)
-- **`config.go`**: Configuration management for both CLI and MCP modes
-- **`auth.go`**: JWT-based authentication middleware
-- **`http_server.go`**: HTTP transport server with health endpoints
-- **`main_test.go`**: Comprehensive test suite with mocking
-
-### Architecture Benefits
-
-- **Maintainability**: Smaller, focused files (45-194 lines) vs previous 600+ line monolith
-- **Readability**: Easy to navigate and understand individual components
-- **Testability**: Components can be tested in isolation
-- **Modularity**: Changes to one aspect don't affect unrelated functionality
-
-## Security Considerations
-
-1. **JWT Authentication**: Use strong secret keys in production
-2. **CORS Configuration**: Restrict origins in production environments  
-3. **HTTPS**: Use reverse proxy with SSL/TLS for production HTTP deployments
-4. **Environment Variables**: Secure storage of API keys and secrets
-5. **Input Validation**: All parameters are validated before processing
-
-## Dependencies
-
-- **[github.com/gregdel/pushover](https://github.com/gregdel/pushover)**: Official Pushover Go client
-- **[github.com/joho/godotenv](https://github.com/joho/godotenv)**: Environment variable loading
-- **[github.com/mark3labs/mcp-go](https://github.com/mark3labs/mcp-go)**: Model Context Protocol implementation
-- **[github.com/stretchr/testify](https://github.com/stretchr/testify)**: Testing framework (dev dependency)
-
-## License
-
-[Add your license information here]
-
-## Contributing
-
-[Add contributing guidelines here]
+1. Create an account at [pushover.net](https://pushover.net).
+2. Register an application to obtain `APP_KEY`.
+3. Find `RECIPIENT_KEY` in the user dashboard.
+4. Register devices when targeting a specific device name.

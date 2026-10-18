@@ -1,6 +1,6 @@
 ---
 title: Pushover open items
-date: 2026-10-17
+date: 2026-10-18
 status: active
 tags: [open-items]
 ---
@@ -17,33 +17,26 @@ None.
 
 ## Defects
 
-Verified against the code on 2026-10-17.
+Verified against the code on 2026-10-18.
 
-- **Emergency limits in the MCP schema exceed the API.** `expire` allows up to 86400 seconds (`mcp_server.go:47`)
-  while Pushover caps emergency `expire` at 10800 seconds and `retry` at 50 attempts.
-  The API refuses values above the cap; lower the schema maximum to 10800.
-- **Emergency priority without retry and expire fails at send time.** The `send_notification` description does not say
-  that `priority: 2` requires both (`mcp_server.go:24`); the library rejects the message instead.
-- **Token generation requires Pushover keys it does not use.** `generateTokenFromArgs` calls `NewMCPConfig(false)`
-  (`mcp_cli.go:104`), whose validation requires `APP_KEY` and `RECIPIENT_KEY` (`config.go:169`, `config.go:173`),
-  although only `PUSHOVER_AUTH_SECRET_KEY` is needed. The tests set the keys to work around it (`main_test.go:1277`).
-- **`/generate-token` handler is not mounted.** `handleGenerateToken` exists (`http_server.go:189`) but the mux
-  registers only `/`, `/health` and `/capabilities` (`http_server.go:63`); `README.md` documents the endpoint anyway.
-  Remove the handler or mount it behind authentication.
-- **`/capabilities` drifts from the tool schema.** It omits `retry` and states the expire range loosely
-  (`http_server.go:160`), while the schema defines both explicitly (`mcp_server.go:44`).
+- **README has a stale HTTP token-generation example.** It documents `POST /generate-token` (`README.md:235-237`),
+  but the HTTP mux registers no such route (`http_server.go:60-65`).
 
 ## Debt
 
-- **Trading integration requests are unimplemented.** From `docs/HANDOFF-2026-10-17-trading.md`, in priority order:
-  `url` and `url_title`; image attachment is now implemented (2.5 MiB library limit, path or base64); `html` and
-  `monospace` (mutually exclusive); `ttl`; `timestamp`; return `X-Limit-App-Remaining`; emergency cancellation is now
-  implemented; Pushover Glances are now available through `send_glance` and `pushover glance`. The receipt is already
-  returned (`mcp_server.go:167`).
-- **Live check pending: does the real glances API send X-Limit headers?** The client tolerates missing headers after a
-  successful Glance response and reports the quota as unknown, but this has not been verified against Pushover's live API.
-- **README is stale.** The architecture section cites outdated line counts, and the HTTP section documents
-  `POST /generate-token`, which is not routed. Build commands still describe the pre-merge Taskfile.
-- **Unused auth helpers.** `getUserID` and `getRole` are unused and kept under `nolint:unused`
-  (`auth.go:149`, `auth.go:167`); either use them or drop them.
-- **No `golang-concurrency` skill installed.** Offered by the scaffold; see the decision above.
+- **OAuth fixes must be ported manually across three copies.** The OAuth server exists in Alerts, polcritique, and Pushover's `internal/oauth` copy.
+  A shared module remains deferred, so a security or correctness fix must be applied to each copy.
+- **OAuth restart continuity is incomplete.** HTTP construction creates a new in-memory `oauth.Store` (`http_server.go:47-65`),
+  which loses client registrations and refresh tokens on restart (`internal/oauth/oauth_store.go:133-164`).
+  A still-valid access JWT continues to pass the stateless bearer check (`auth.go:82-98`),
+  but after it expires the absent refresh token forces a fresh authorization and login (`internal/oauth/oauth_token.go:177-203`).
+- **CLI zero values cannot override defaults.** `PUSHOVER_EXPIRE` and `PUSHOVER_RETRY` set expiry and retry defaults,
+  which otherwise are 180 and 60 seconds (`config.go:79-80`, `config.go:96-106`).
+  `ParseArgs` tracks whether only priority was supplied (`cli.go:126-153`).
+  Message construction ignores `-ttl 0` and `-timestamp 0`, and uses non-zero checks for `-e 0` and `-r 0` (`pushover.go:97-142`).
+- **The SpaceGrey post-commit hook is not executable.** `.git/hooks/post-commit` is mode `0644`,
+  so Git reports that it was ignored because it is not executable.
+  Fix the executable bit on GoldenAir through `fix-exec-bits`, not in this checkout.
+- **Live check pending: do Glance responses carry `X-Limit` headers?** The client accepts a successful response without quota headers
+  and reports quota as unknown (`glance.go:110-120`).
+- **No `golang-concurrency` skill is installed.** The scaffold offers it, but this checkout contains only the `golang-modern` project skill.

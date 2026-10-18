@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 
+	"github.com/gregdel/pushover"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -29,6 +31,17 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 			),
 			mcp.WithString("title",
 				mcp.Description("Optional title for the notification"),
+			),
+			mcp.WithString("attachment_path",
+				mcp.Description("Local path to an image file; refused over HTTP transport, stdio only; mutually exclusive with attachment_base64"),
+			),
+			mcp.WithString("attachment_base64",
+				mcp.Description("Standard base64 image data (max 2.5 MiB decoded); requires attachment_type; mutually exclusive with attachment_path"),
+				mcp.MaxLength(base64.StdEncoding.EncodedLen(pushover.MessageMaxAttachmentByte)),
+			),
+			mcp.WithString("attachment_type",
+				mcp.Description("Expected image MIME type; required with attachment_base64 and optional with attachment_path, where it must match the detected type"),
+				mcp.Enum(allowedAttachmentTypes...),
 			),
 			mcp.WithString("url",
 				mcp.Description("Supplementary URL shown with the notification (max 512 characters)"),
@@ -158,17 +171,14 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	}
 	device := request.GetString("device", "")
 	sound := request.GetString("sound", "")
+	attachmentPath := request.GetString("attachment_path", "")
+	attachmentBase64 := request.GetString("attachment_base64", "")
+	attachmentType := request.GetString("attachment_type", "")
 	expireTime := request.GetInt("expire", config.PushoverDefaultExpire)
 	retryTime := request.GetInt("retry", config.PushoverDefaultRetry)
 
 	// Create legacy config for compatibility
 	legacyConfig := config.ToLegacyConfig()
-
-	// Create Pushover client
-	client, recipient, err := newPushoverClient(legacyConfig)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to create Pushover client: %v", err)), nil
-	}
 
 	// Create CLI args structure for message creation
 	cliArgs := &CLIArgs{
@@ -190,6 +200,17 @@ func handleSendNotification(ctx context.Context, request mcp.CallToolRequest, co
 	}
 	if _, ok := arguments["timestamp"]; ok {
 		cliArgs.Timestamp = int64(request.GetInt("timestamp", 0))
+	}
+	attachment, err := loadAttachment(ctx, attachmentPath, attachmentBase64, attachmentType)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid attachment: %v", err)), nil
+	}
+	cliArgs.Attachment = attachment
+
+	// Create Pushover client
+	client, recipient, err := newPushoverClient(legacyConfig)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to create Pushover client: %v", err)), nil
 	}
 
 	// Create and send message

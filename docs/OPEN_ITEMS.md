@@ -36,8 +36,9 @@ Verified against the code on 2026-10-17.
 ## Debt
 
 - **Trading integration requests are unimplemented.** From `docs/HANDOFF-2026-10-17-trading.md`, in priority order:
-  `url` and `url_title`; one image `attachment` (5 MiB, path or base64); `html` and `monospace` (mutually exclusive);
-  `ttl`; `timestamp`; return `X-Limit-App-Remaining` and support emergency cancellation; a `send_glance` tool for
+  `url` and `url_title`; image attachment is now implemented (2.5 MiB library limit, path or base64); `html` and
+  `monospace` (mutually exclusive); `ttl`; `timestamp`; return `X-Limit-App-Remaining` and support emergency
+  cancellation; a `send_glance` tool for
   Pushover Glances. The receipt is already returned (`mcp_server.go:167`). The underlying `gregdel/pushover` v1.4.0
   covers the message fields; the MCP schema and CLI flags need to grow.
 - **README is stale.** The architecture section cites outdated line counts, and the HTTP section documents

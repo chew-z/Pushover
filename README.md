@@ -126,21 +126,23 @@ PUSHOVER_EXPIRE=180
 #### Command Line Options
 
 ```bash
--m, -message    Message to send (required)
--t, -title      Message title
--p, -priority   Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)
--s, -sound      Sound name (see sounds list below)
--e, -expire     Expire time in seconds for emergency messages (max 10800)
--r, -retry      Retry interval in seconds for emergency messages (min 30)
--d, -device     Target device name
--url            Supplementary URL shown with the notification
--url-title      Title for the supplementary URL (requires -url)
--html           Render the message as HTML
--monospace      Render the message in a monospace font
--ttl            Seconds until the notification is deleted (0 = unset)
--timestamp      Unix timestamp in seconds to display (0 = unset)
--h, -help       Show help
--version        Show version
+-m, -message      Message to send (required)
+-t, -title        Message title
+-p, -priority     Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)
+-s, -sound        Sound name (see sounds list below)
+-e, -expire       Expire time in seconds for emergency messages (max 10800)
+-r, -retry        Retry interval in seconds for emergency messages (min 30)
+-d, -device       Target device name
+-attachment       Image file to attach (png, jpeg, gif, webp; max 2.5 MiB)
+-attachment-type  Expected attachment MIME type (optional)
+-url              Supplementary URL shown with the notification
+-url-title        Title for the supplementary URL (requires -url)
+-html             Render the message as HTML
+-monospace        Render the message in a monospace font
+-ttl              Seconds until the notification is deleted (0 = unset)
+-timestamp        Unix timestamp in seconds to display (0 = unset)
+-h, -help         Show help
+-version          Show version
 ```
 
 #### Available Sounds
@@ -296,6 +298,9 @@ Send push notifications via Pushover
 - `priority` (optional): Priority level (-2 to 2). Priority 2 requires both `retry` and `expire`.
 - `device` (optional): Target device name  
 - `sound` (optional): Notification sound name
+- `attachment_path` (optional): Local path to an image file; refused over HTTP transport, stdio only; mutually exclusive with `attachment_base64`
+- `attachment_base64` (optional): Standard base64 image data (max 2.5 MiB decoded); requires `attachment_type`; mutually exclusive with `attachment_path`
+- `attachment_type` (optional): Expected image MIME type (`image/png`, `image/jpeg`, `image/gif`, or `image/webp`); required with `attachment_base64`, optional with `attachment_path` and must match the detected type
 - `url` (optional): Supplementary URL shown with the notification (max 512 chars)
 - `url_title` (optional): Title for the supplementary URL (max 100 chars; requires `url`)
 - `html` (optional): Render the message as HTML (mutually exclusive with `monospace`)

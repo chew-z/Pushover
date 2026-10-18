@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strconv"
@@ -139,6 +140,11 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 	}
 	if cliArgs.Timestamp > 0 {
 		message.Timestamp = cliArgs.Timestamp
+	}
+	if len(cliArgs.Attachment) > 0 {
+		if err := message.AddAttachment(bytes.NewReader(cliArgs.Attachment)); err != nil {
+			return nil, fmt.Errorf("add attachment: %w", err)
+		}
 	}
 
 	return message, nil

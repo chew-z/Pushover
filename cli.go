@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,7 +28,13 @@ type CLIArgs struct {
 	// TTL is seconds until the notification is deleted; 0 means unset.
 	TTL int
 	// Timestamp is Unix seconds to display; 0 means unset.
-	Timestamp   int64
+	Timestamp int64
+	// AttachmentPath is the local path of the image attachment.
+	AttachmentPath string
+	// AttachmentType is the expected MIME type of the image attachment.
+	AttachmentType string
+	// Attachment contains the loaded image attachment bytes.
+	Attachment  []byte
 	Sound       string
 	ExpireTime  int
 	RetryTime   int
@@ -43,6 +50,10 @@ func showMainHelp(progName string) {
 	fmt.Fprintln(os.Stdout, "\nSubcommands:")
 	fmt.Fprintln(os.Stdout, "  mcp               Start MCP server mode")
 	fmt.Fprintln(os.Stdout, "\nOptions:")
+	fmt.Fprintln(os.Stdout, "  -attachment string")
+	fmt.Fprintln(os.Stdout, "        Image file to attach (png, jpeg, gif, webp; max 2.5 MiB)")
+	fmt.Fprintln(os.Stdout, "  -attachment-type string")
+	fmt.Fprintln(os.Stdout, "        Expected attachment MIME type (optional)")
 	fmt.Fprintln(os.Stdout, "  -d string")
 	fmt.Fprintln(os.Stdout, "        Device name")
 	fmt.Fprintln(os.Stdout, "  -device string")
@@ -102,6 +113,8 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 
 	fs.StringVar(&cliArgs.Message, "m", "", "Message to send (required)")
 	fs.StringVar(&cliArgs.Message, "message", "", "Message to send (required)")
+	fs.StringVar(&cliArgs.AttachmentPath, "attachment", "", "Image file to attach (png, jpeg, gif, webp; max 2.5 MiB)")
+	fs.StringVar(&cliArgs.AttachmentType, "attachment-type", "", "Expected attachment MIME type (optional)")
 	fs.StringVar(&cliArgs.Title, "t", "", "Message title")
 	fs.StringVar(&cliArgs.Title, "title", "", "Message title")
 	fs.StringVar(&cliArgs.URL, "url", "", "Supplementary URL shown with the notification")
@@ -179,6 +192,11 @@ func Run(args []string, client PushoverClient) error {
 	if cliArgs.ShowHelp || cliArgs.ShowVersion {
 		return nil // Already handled in ParseArgs
 	}
+	attachment, err := loadAttachment(context.Background(), cliArgs.AttachmentPath, "", cliArgs.AttachmentType)
+	if err != nil {
+		return fmt.Errorf("invalid attachment: %w", err)
+	}
+	cliArgs.Attachment = attachment
 
 	// Create Pushover client if not provided (for testing)
 	var recipient *pushover.Recipient

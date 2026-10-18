@@ -348,17 +348,38 @@ func TestStoreIsRaceFree(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			id := fmt.Sprintf("k-%02d", i)
-			_ = store.RegisterClient(&Client{ClientID: id})
-			_ = store.PutPending(&PendingAuthorization{ID: id, CreatedAt: clock.Now(), ExpiresAt: expires})
-			_ = store.PutCode(&AuthorizationCode{Code: id, ExpiresAt: expires})
-			_ = store.PutRefreshToken(&RefreshToken{Token: id, FamilyID: "fam", ExpiresAt: expires})
+			if err := store.RegisterClient(&Client{ClientID: id}); err != nil {
+				t.Errorf("goroutine %d: RegisterClient: %v", i, err)
+			}
+			if err := store.PutPending(&PendingAuthorization{ID: id, CreatedAt: clock.Now(), ExpiresAt: expires}); err != nil {
+				t.Errorf("goroutine %d: PutPending: %v", i, err)
+			}
+			if err := store.PutCode(&AuthorizationCode{Code: id, ExpiresAt: expires}); err != nil {
+				t.Errorf("goroutine %d: PutCode: %v", i, err)
+			}
+			if err := store.PutRefreshToken(&RefreshToken{Token: id, FamilyID: "fam", ExpiresAt: expires}); err != nil {
+				t.Errorf("goroutine %d: PutRefreshToken: %v", i, err)
+			}
 			store.GetClient(id)
-			store.GetPending(id)
-			store.ConsumeRefreshToken(id)
+			if _, ok := store.GetPending(id); !ok {
+				t.Errorf("goroutine %d: GetPending(%q): not found", i, id)
+			}
 			store.AllowRequest("login", id)
 			store.TakeCode(id)
 		}(i)
 	}
 	wg.Wait()
+	for i := 0; i < 50; i++ {
+		id := fmt.Sprintf("k-%02d", i)
+		if _, ok := store.GetClient(id); !ok {
+			t.Errorf("GetClient(%q): not found", id)
+		}
+	}
 	store.RevokeFamily("fam")
+	for i := 0; i < 50; i++ {
+		id := fmt.Sprintf("k-%02d", i)
+		if _, ok := store.ConsumeRefreshToken(id); ok {
+			t.Errorf("ConsumeRefreshToken(%q): token remained after family revocation", id)
+		}
+	}
 }

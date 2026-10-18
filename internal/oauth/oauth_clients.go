@@ -141,11 +141,10 @@ func newGuardedHTTPClient() *http.Client {
 
 // isPublicIP reports whether an address is routable on the public internet.
 //
-// hide which ranges are covered, and coverage is the whole point.
+// A flat list of address ranges to refuse. Splitting it would hide which
+// ranges are covered, and coverage is the whole point.
 // Loopback, private, link-local, unspecified, multicast and IPv4-mapped IPv6
 // addresses are all refused.
-//
-//nolint:gocyclo // A flat list of address ranges to refuse. Splitting it would
 func isPublicIP(ip net.IP) bool {
 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
 		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
@@ -207,9 +206,8 @@ func looksLikeCIMDIdentifier(clientID string) bool {
 
 // fetchClientMetadata retrieves and validates a Client ID Metadata Document.
 //
-// bearing: each check narrows what the next may assume.
-//
-//nolint:gocyclo // A sequential validation chain where the order is load
+// A sequential validation chain where the order is load bearing: each check
+// narrows what the next may assume.
 func (r *ClientRegistry) fetchClientMetadata(ctx context.Context, clientID string) (*Client, error) {
 	select {
 	case r.fetchSlots <- struct{}{}:

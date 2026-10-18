@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -177,6 +178,68 @@ func (h *flowHarness) codeExchangeForm(code string) url.Values {
 	}
 }
 
+func TestAuthorizeHandlerIsRateLimited(t *testing.T) {
+	h := newFlowHarness(t)
+	handler := h.auth.AuthorizeHandler()
+
+	limited := false
+	for i := 0; i < rateLimitCapacity+2; i++ {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/authorize", nil)
+		req.RemoteAddr = "203.0.113.23:1234"
+		rec := httptest.NewRecorder()
+		handler(rec, req)
+		if rec.Code == http.StatusTooManyRequests {
+			limited = true
+			break
+		}
+	}
+	if !limited {
+		t.Error("authorization requests must be rate limited per IP")
+	}
+}
+
+func TestLoginHandlerIsRateLimited(t *testing.T) {
+	h := newFlowHarness(t)
+	handler := h.auth.LoginHandler()
+
+	limited := false
+	for i := 0; i < rateLimitCapacity+2; i++ {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/login", strings.NewReader(""))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = "203.0.113.24:1234"
+		rec := httptest.NewRecorder()
+		handler(rec, req)
+		if rec.Code == http.StatusTooManyRequests {
+			limited = true
+			break
+		}
+	}
+	if !limited {
+		t.Error("login requests must be rate limited per IP")
+	}
+}
+
+func TestTokenHandlerIsRateLimited(t *testing.T) {
+	h := newFlowHarness(t)
+	handler := h.tokens.TokenHandler()
+
+	limited := false
+	for i := 0; i < rateLimitCapacity+2; i++ {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/token", strings.NewReader("grant_type=authorization_code"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = "203.0.113.25:1234"
+		rec := httptest.NewRecorder()
+		handler(rec, req)
+		if rec.Code == http.StatusTooManyRequests {
+			limited = true
+			break
+		}
+	}
+	if !limited {
+		t.Error("token requests must be rate limited per IP")
+	}
+}
+
 func TestFullAuthorizationCodeFlow(t *testing.T) {
 	h := newFlowHarness(t)
 	code, query := h.codeFromHappyPath(t, "opaque-state")
@@ -285,6 +348,54 @@ func TestLoginRejectsBadCredentials(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLoginHandlerBoundsConcurrentVerification(t *testing.T) {
+	h := newFlowHarness(t)
+	authorized := h.authorize(t, nil)
+	body := authorized.Body.String()
+	id, csrf := hiddenField(t, body, "pending_id"), hiddenField(t, body, "csrf_token")
+
+	release := make(chan struct{})
+	var inside sync.WaitGroup
+	inside.Add(maxConcurrentLogins)
+	h.auth.verifyPassword = func(_, _ string) bool {
+		inside.Done()
+		<-release
+		return false
+	}
+
+	var finished sync.WaitGroup
+	finished.Add(maxConcurrentLogins)
+	for range maxConcurrentLogins {
+		go func() {
+			defer finished.Done()
+			h.login(t, id, csrf, flowUser, "whatever")
+		}()
+	}
+	inside.Wait()
+
+	response := h.login(t, id, csrf, flowUser, "whatever")
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", response.Code)
+	}
+	pending, ok := h.store.GetPending(id)
+	if !ok {
+		t.Fatal("busy login consumed the pending authorization")
+	}
+	if pending.FailedLogins != 0 {
+		t.Fatalf("busy login failures = %d, want 0", pending.FailedLogins)
+	}
+
+	close(release)
+	finished.Wait()
+
+	inside.Add(1)
+	response = h.login(t, id, csrf, flowUser, "whatever")
+	if response.Code == http.StatusServiceUnavailable {
+		t.Fatal("login stayed busy after verification slots were released")
+	}
+	inside.Wait()
 }
 
 func TestLoginLockoutDropsPendingAuthorization(t *testing.T) {
@@ -398,6 +509,7 @@ func TestTokenEndpointClientAuthentication(t *testing.T) {
 		{"public presents secret", h.client.ClientID, "secret", "post", http.StatusUnauthorized},
 		{"confidential basic succeeds", confidential.ClientID, confidential.ClientSecret, "basic", http.StatusBadRequest},
 		{"confidential method mismatch", confidential.ClientID, confidential.ClientSecret, "post", http.StatusUnauthorized},
+		{"confidential wrong secret", confidential.ClientID, "not-the-secret", "basic", http.StatusUnauthorized},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -411,6 +523,15 @@ func TestTokenEndpointClientAuthentication(t *testing.T) {
 			h.tokens.TokenHandler()(response, request)
 			if response.Code != test.want {
 				t.Fatalf("status = %d, want %d", response.Code, test.want)
+			}
+			if test.want == http.StatusUnauthorized {
+				var body map[string]string
+				if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+					t.Fatalf("decoding response: %v", err)
+				}
+				if body["error"] != "invalid_client" {
+					t.Fatalf("error = %q, want invalid_client", body["error"])
+				}
 			}
 		})
 	}

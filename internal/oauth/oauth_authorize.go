@@ -14,12 +14,21 @@ import (
 // password inside it.
 const pendingAuthorizationTTL = 10 * time.Minute
 
+// maxConcurrentLogins caps password verification because PBKDF2 at 600k
+// iterations is CPU-bound; unbounded concurrent logins are a CPU exhaustion
+// vector, while this cap bounds verification regardless of how many IPs attack.
+const maxConcurrentLogins = 4
+
 // AuthorizationService issues authorization codes after a password login.
 type AuthorizationService struct {
 	cfg      Config
 	store    *Store
 	registry *ClientRegistry
 	log      *slog.Logger
+	// verifySlots bounds concurrent password verification.
+	verifySlots chan struct{}
+	// verifyPassword verifies a stored password hash; tests replace it.
+	verifyPassword func(stored, password string) bool
 }
 
 // NewAuthorizationService wires the authorize and login endpoints.
@@ -28,10 +37,12 @@ func NewAuthorizationService(cfg Config, store *Store, registry *ClientRegistry,
 		log = slog.Default()
 	}
 	return &AuthorizationService{
-		cfg:      cfg,
-		store:    store,
-		registry: registry,
-		log:      log,
+		cfg:            cfg,
+		store:          store,
+		registry:       registry,
+		log:            log,
+		verifySlots:    make(chan struct{}, maxConcurrentLogins),
+		verifyPassword: verifyPassword,
 	}
 }
 
@@ -168,6 +179,15 @@ func (s *AuthorizationService) LoginHandler() http.HandlerFunc {
 			s.renderError(w, http.StatusTooManyRequests, "Too many login attempts. Wait a moment and try again.")
 			return
 		}
+		// Take a slot before parsing so the whole request, not only the hash, stays
+		// bounded and a rejection leaves the pending untouched.
+		select {
+		case s.verifySlots <- struct{}{}:
+		default:
+			s.renderError(w, http.StatusServiceUnavailable, "The server is busy. Try again in a moment.")
+			return
+		}
+		defer func() { <-s.verifySlots }()
 		if err := r.ParseForm(); err != nil {
 			s.renderError(w, http.StatusBadRequest, "Malformed login form.")
 			return
@@ -274,7 +294,7 @@ func (s *AuthorizationService) credentialsValid(username, password string) bool 
 	// Both comparisons run every time and in constant time, so a wrong
 	// username and a wrong password cost the same.
 	userOK := subtle.ConstantTimeCompare([]byte(s.cfg.LoginUser), []byte(username)) == 1
-	passOK := verifyPassword(s.cfg.LoginPasswordHash, password)
+	passOK := s.verifyPassword(s.cfg.LoginPasswordHash, password)
 	return userOK && passOK
 }
 
@@ -381,7 +401,7 @@ code { word-break: break-all; }
 <p class="sub">send notifications</p>
 {{if .Error}}<div class="err">{{.Error}}</div>{{end}}
 <div class="grant">
-<strong>{{.ClientName}}</strong> is asking to manage your watchlist as you on
+<strong>{{.ClientName}}</strong> is asking to send notifications as you on
 <code>{{.Resource}}</code>. Signing in grants it that access.
 </div>
 <form method="post" action="{{.LoginPath}}">

@@ -78,9 +78,8 @@ func (s *TokenService) TokenHandler() http.HandlerFunc {
 // client presenting a secret, or a confidential one omitting it, is rejected
 // rather than silently accepted under the other rule.
 //
-// place to see that neither can fall through into the other.
-//
-//nolint:gocyclo // The public and confidential paths must both be read in one
+// The public and confidential paths must both be read in one place to see that
+// neither can fall through into the other.
 func (s *TokenService) authenticateClient(w http.ResponseWriter, r *http.Request) (*Client, bool) {
 	basicID, basicSecret, hasBasic := r.BasicAuth()
 	postID := r.PostFormValue("client_id")

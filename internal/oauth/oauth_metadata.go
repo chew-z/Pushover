@@ -89,12 +89,11 @@ func authorizationServerMetadata(cfg Config) AuthorizationServerMetadata {
 	}
 }
 
-// protectedResourceMetadataPath is the RFC 9728 probe path for our resource.
+// ProtectedResourceMetadataPath returns the RFC 9728 probe path for resource.
 //
 // The path is the resource URI's path component appended to the well-known
-// prefix. Our resource is https://karma.example/pushover/mcp, so the probe
-// lands one segment deeper than the /gemini precedent on the same host.
-// ProtectedResourceMetadataPath returns the RFC 9728 probe path for resource.
+// prefix, so a resource served under a sub-path is probed one segment deeper
+// than the host root.
 func ProtectedResourceMetadataPath(resource string) string {
 	path := resourcePath(resource)
 	if path == "" {

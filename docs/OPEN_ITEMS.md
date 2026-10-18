@@ -17,10 +17,7 @@ None.
 
 ## Defects
 
-Verified against the code on 2026-10-18.
-
-- **README has a stale HTTP token-generation example.** It documents `POST /generate-token` (`README.md:235-237`),
-  but the HTTP mux registers no such route (`http_server.go:60-65`).
+None.
 
 ## Debt
 

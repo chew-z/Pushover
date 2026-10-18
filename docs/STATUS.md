@@ -31,7 +31,7 @@ tags: [status]
 
 ## Deployment
 
-karma.rrj.pl runs Pushover on `:8092` behind nginx with stateless HTTP and OAuth.
+karma.rrj.pl runs Pushover on `127.0.0.1:8092` behind nginx (redeployed 2026-10-18 from `77f04a9`; port 8092 is also closed by the firewall) with stateless HTTP and OAuth.
 The issuer is `https://karma.rrj.pl/pushover`, and the resource is `https://karma.rrj.pl/pushover/mcp`.
 The systemd unit is `/etc/systemd/system/pushover.service`.
 The claude.ai connector was verified on 2026-10-17 by logging in and calling `send_notification`.

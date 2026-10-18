@@ -26,6 +26,10 @@ Still open from that review:
 
 - **`TestMCPSchemaValidation` never swaps in the mock** (`main_test.go:351`), so it exercises the schema only through a client it cannot observe.
 - **`exported` is inert on the root package.** revive skips `package main`, so the doc-comment rule enforced since `6e69f6b` covers only `internal/oauth`.
+- **Graceful shutdown always times out under load.** On SIGTERM `runHTTP` gives `http.Server.Shutdown` 30 seconds (`http_server.go:94-98`),
+  but the streamable HTTP session stream, kept alive by the heartbeat, never goes idle, so the deadline expires and systemd kills the process.
+  Seen on 2026-10-18 at the loopback redeploy: "server shutdown failed: context deadline exceeded" from the old process, then a clean start.
+  Close the streams on shutdown or shorten the deadline.
 - **The per-pending `maxLoginAttempts` counter resets with every fresh `GET /authorize`,** so it bounds guessing per form, not per attacker;
   the per-IP bucket and the login semaphore are the real limits.
 

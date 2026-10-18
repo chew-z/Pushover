@@ -27,7 +27,7 @@
 // markdownlint's `params.lines` excludes front matter, and onError line numbers
 // are relative to it — the library adds the front matter offset itself.
 
-const BLOCKQUOTE_PREFIX = /^\s*>/;
+const BLOCKQUOTE_PREFIX = /^\s*>\s?/;
 const DASH_LEAD = /^[—–][   \t]/;
 
 // Glob subset: "**" crosses directory separators, "*" and "?" do not.

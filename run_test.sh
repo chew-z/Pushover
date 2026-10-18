@@ -10,4 +10,5 @@ export PATH="${PATH}:/usr/local/go/bin"
 if [ -z "${RUN_WRAPPER_IN_TASK:-}" ] && command -v task >/dev/null 2>&1; then
   RUN_WRAPPER_IN_TASK=1 exec task test
 fi
-exec go test -v ./...
+export CGO_ENABLED=1
+exec go test -race -v ./...

@@ -43,73 +43,34 @@ type CLIArgs struct {
 	ShowHelp    bool
 }
 
-// showMainHelp displays the main help text including subcommands
-func showMainHelp(progName string) {
-	fmt.Fprintf(os.Stdout, "Usage: %s [OPTIONS] | %s SUBCOMMAND [OPTIONS]\n", progName, progName)
-	fmt.Fprintln(os.Stdout, "\nSend push notifications via Pushover")
-	fmt.Fprintln(os.Stdout, "\nSubcommands:")
-	fmt.Fprintln(os.Stdout, "  cancel            Cancel an emergency notification by receipt")
-	fmt.Fprintln(os.Stdout, "  glance            Send an Apple Watch complication Glance update")
-	fmt.Fprintln(os.Stdout, "  mcp               Start MCP server mode")
-	fmt.Fprintln(os.Stdout, "\nOptions:")
-	fmt.Fprintln(os.Stdout, "  -attachment string")
-	fmt.Fprintln(os.Stdout, "        Image file to attach (png, jpeg, gif, webp; max 2.5 MiB)")
-	fmt.Fprintln(os.Stdout, "  -attachment-type string")
-	fmt.Fprintln(os.Stdout, "        Expected attachment MIME type (optional)")
-	fmt.Fprintln(os.Stdout, "  -d string")
-	fmt.Fprintln(os.Stdout, "        Device name")
-	fmt.Fprintln(os.Stdout, "  -device string")
-	fmt.Fprintln(os.Stdout, "        Device name")
-	fmt.Fprintln(os.Stdout, "  -e int")
-	fmt.Fprintln(os.Stdout, "        Expire time in seconds for emergency messages (max 10800)")
-	fmt.Fprintln(os.Stdout, "  -expire int")
-	fmt.Fprintln(os.Stdout, "        Expire time in seconds for emergency messages (max 10800)")
-	fmt.Fprintln(os.Stdout, "  -h    Show help")
-	fmt.Fprintln(os.Stdout, "  -help")
-	fmt.Fprintln(os.Stdout, "        Show help")
-	fmt.Fprintln(os.Stdout, "  -html")
-	fmt.Fprintln(os.Stdout, "        Render the message as HTML")
-	fmt.Fprintln(os.Stdout, "  -m string")
-	fmt.Fprintln(os.Stdout, "        Message to send (required)")
-	fmt.Fprintln(os.Stdout, "  -message string")
-	fmt.Fprintln(os.Stdout, "        Message to send (required)")
-	fmt.Fprintln(os.Stdout, "  -monospace")
-	fmt.Fprintln(os.Stdout, "        Render the message in a monospace font")
-	fmt.Fprintln(os.Stdout, "  -p int")
-	fmt.Fprintln(os.Stdout, "        Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)")
-	fmt.Fprintln(os.Stdout, "  -priority int")
-	fmt.Fprintln(os.Stdout, "        Priority (-2=lowest, -1=low, 0=normal, 1=high, 2=emergency)")
-	fmt.Fprintln(os.Stdout, "  -s string")
-	fmt.Fprintln(os.Stdout, "        Sound name")
-	fmt.Fprintln(os.Stdout, "  -sound string")
-	fmt.Fprintln(os.Stdout, "        Sound name")
-	fmt.Fprintln(os.Stdout, "  -t string")
-	fmt.Fprintln(os.Stdout, "        Message title")
-	fmt.Fprintln(os.Stdout, "  -timestamp int")
-	fmt.Fprintln(os.Stdout, "        Unix timestamp in seconds to display (0 = unset)")
-	fmt.Fprintln(os.Stdout, "  -title string")
-	fmt.Fprintln(os.Stdout, "        Message title")
-	fmt.Fprintln(os.Stdout, "  -ttl int")
-	fmt.Fprintln(os.Stdout, "        Seconds until the notification is deleted (0 = unset)")
-	fmt.Fprintln(os.Stdout, "  -url string")
-	fmt.Fprintln(os.Stdout, "        Supplementary URL shown with the notification")
-	fmt.Fprintln(os.Stdout, "  -url-title string")
-	fmt.Fprintln(os.Stdout, "        Title for the supplementary URL")
-	fmt.Fprintln(os.Stdout, "  -version")
-	fmt.Fprintln(os.Stdout, "        Show version")
-	fmt.Fprintln(os.Stdout, "\nEnvironment Variables:")
-	fmt.Fprintln(os.Stdout, "  APP_KEY           Pushover application key (required)")
-	fmt.Fprintln(os.Stdout, "  RECIPIENT_KEY     Pushover recipient key (required)")
-	fmt.Fprintln(os.Stdout, "  DEVICE_NAME       Default device name")
-	fmt.Fprintln(os.Stdout, "  DEFAULT_TITLE     Default message title")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_PRIORITY Default priority")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_SOUND    Default sound")
-	fmt.Fprintln(os.Stdout, "  PUSHOVER_EXPIRE   Default expire time")
+// showMainHelp writes the main help text, including subcommands, to the FlagSet's output.
+func showMainHelp(fs *flag.FlagSet, progName string) {
+	out := fs.Output()
+	fmt.Fprintf(out, "Usage: %s [OPTIONS] | %s SUBCOMMAND [OPTIONS]\n", progName, progName)
+	fmt.Fprintln(out, "\nSend push notifications via Pushover")
+	fmt.Fprintln(out, "\nSubcommands:")
+	fmt.Fprintln(out, "  cancel            Cancel an emergency notification by receipt")
+	fmt.Fprintln(out, "  glance            Send an Apple Watch complication Glance update")
+	fmt.Fprintln(out, "  mcp               Start MCP server mode")
+	fmt.Fprintln(out, "\nOptions:")
+	fs.PrintDefaults()
+	fmt.Fprintln(out, "\nEnvironment Variables:")
+	fmt.Fprintln(out, "  APP_KEY           Pushover application key (required)")
+	fmt.Fprintln(out, "  RECIPIENT_KEY     Pushover recipient key (required)")
+	fmt.Fprintln(out, "  DEVICE_NAME       Default device name")
+	fmt.Fprintln(out, "  DEFAULT_TITLE     Default message title")
+	fmt.Fprintln(out, "  PUSHOVER_PRIORITY Default priority")
+	fmt.Fprintln(out, "  PUSHOVER_SOUND    Default sound")
+	fmt.Fprintln(out, "  PUSHOVER_EXPIRE   Default expire time")
 }
 
 // ParseArgs parses command-line arguments using the flag package
 func ParseArgs(args []string) (*CLIArgs, error) {
+	if len(args) < 1 {
+		return nil, errors.New("no program name in arguments")
+	}
 	fs := flag.NewFlagSet("pushover", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
 
 	cliArgs := &CLIArgs{}
 
@@ -141,7 +102,7 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 
 	// Custom usage function
 	fs.Usage = func() {
-		showMainHelp(args[0])
+		showMainHelp(fs, args[0])
 	}
 
 	if err := fs.Parse(args[1:]); err != nil {

@@ -1,3 +1,4 @@
+// Command pushover runs the Pushover MCP server and command-line client.
 package main
 
 import (
@@ -11,7 +12,7 @@ import (
 
 // version is a variable, not a constant, so the Taskfile and release script
 // can inject the build version with -ldflags "-X main.version=...".
-var version = "1.0.0"
+var version = "dev"
 
 // hasSubcommand reports whether args[1] names a subcommand. A value within
 // Levenshtein distance 1 of a known subcommand, or with one adjacent pair

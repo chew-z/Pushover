@@ -178,6 +178,18 @@ func TestParseArgs_ShowHelp(t *testing.T) {
 	}
 }
 
+func TestParseArgs_NoArgs(t *testing.T) {
+	for _, args := range [][]string{nil, {}} {
+		cliArgs, err := ParseArgs(args)
+		if err == nil {
+			t.Error("expected an error for missing program name")
+		}
+		if cliArgs != nil {
+			t.Error("expected nil CLIArgs for missing program name")
+		}
+	}
+}
+
 func TestParseArgs_ShowVersion(t *testing.T) {
 	args := []string{"pushover", "-version"}
 
@@ -261,7 +273,7 @@ func TestMCPConfig_Validation(t *testing.T) {
 		expectError bool
 		errContains string
 	}{
-		{"valid config", func(c *MCPConfig) {}, false, ""},
+		{"valid config", func(_ *MCPConfig) {}, false, ""},
 		{"missing app key", func(c *MCPConfig) { c.PushoverAppKey = "" }, true, "APP_KEY environment variable is required"},
 		{"missing recipient key", func(c *MCPConfig) { c.PushoverRecipientKey = "" }, true, "RECIPIENT_KEY environment variable is required"},
 		{"priority too low", func(c *MCPConfig) { c.PushoverDefaultPriority = -3 }, true, "PUSHOVER_PRIORITY must be between -2 and 2"},

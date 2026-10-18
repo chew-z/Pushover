@@ -63,13 +63,10 @@ MD033:
     - sub
     - sup
 
-# --- Dialogue: every replica is its own paragraph (custom rule shipped in
-# this skill's references/, loaded from .markdownlint-cli2.jsonc). Files listed
-# here are left alone — legacy English prose may wrap onto a dash-led line.
-# Globs match the file's ABSOLUTE path, so anchor directory names with **/.
+# --- Dialogue: every replica is its own paragraph.
+# The rule applies everywhere; add globs here only for legacy prose that cannot be fixed.
 dialogue-paragraph:
-  ignorePaths:
-    - "**/docs/**"
+  ignorePaths: []
 
 # --- Tables: consistent readable pipes; no forced column alignment.
 MD055:

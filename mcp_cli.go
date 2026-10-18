@@ -14,18 +14,13 @@ import (
 	"golang.org/x/term"
 )
 
-// showMCPHelp writes the MCP subcommand help text.
-func showMCPHelp(out io.Writer, progName string) {
+// showMCPHelp writes the MCP subcommand help text to out.
+func showMCPHelp(fs *flag.FlagSet, out io.Writer, progName string) {
 	fmt.Fprintf(out, "Usage: %s mcp [OPTIONS]\n", progName)
 	fmt.Fprintln(out, "\nStart MCP server for push notifications")
 	fmt.Fprintln(out, "\nOptions:")
-	fmt.Fprintln(out, "  -auth-enabled                 Enable bearer authentication for HTTP transport")
-	fmt.Fprintln(out, "  -generate-token               Generate a static bearer token and exit")
-	fmt.Fprintln(out, "  -hash-password                Hash an OAuth login password and exit")
-	fmt.Fprintln(out, "  -h, -help                     Show help")
-	fmt.Fprintln(out, "  -token-username string        Token username (default \"admin\")")
-	fmt.Fprintln(out, "  -token-ttl duration           Token lifetime (default 744h)")
-	fmt.Fprintln(out, "  -transport string             Transport mode: 'stdio' (default) or 'http'")
+	fs.SetOutput(out)
+	fs.PrintDefaults()
 	fmt.Fprintln(out, "\nEnvironment Variables:")
 	fmt.Fprintln(out, "  APP_KEY                        Pushover application key (required to run the server)")
 	fmt.Fprintln(out, "  RECIPIENT_KEY                  Pushover recipient key (required to run the server)")
@@ -74,7 +69,7 @@ func runMCPCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) err
 	tokenUsername := fs.String("token-username", "admin", "Token username")
 	tokenTTL := fs.Duration("token-ttl", 744*time.Hour, "Token lifetime")
 	hashPassword := fs.Bool("hash-password", false, "Hash an OAuth login password and exit")
-	fs.Usage = func() { showMCPHelp(stdout, args[0]) }
+	fs.Usage = func() { showMCPHelp(fs, stdout, args[0]) }
 	if err := fs.Parse(args[2:]); err != nil {
 		return err
 	}

@@ -53,12 +53,13 @@ OAuth also validates the issuer, resource, login user, password hash, and token 
 Build the deployed binary with:
 
 ```sh
-task build --force
+task build
 ```
 
-`task build` may skip a rebuild when its Go sources, `go.mod`, and `go.sum` match its recorded generated output.
-`--force` bypasses that freshness decision before a deployment (`Taskfile.yml:30-40`).
-The output is `bin/pushover` (`Taskfile.yml:7-8`, `Taskfile.yml:30-40`).
+The build task re-runs when its Go sources, `go.mod`, `go.sum`, or the
+`git describe --tags --always --dirty` version changes, and is otherwise skipped
+as up to date (`Taskfile.yml:30-47`). The output is `bin/pushover`
+(`Taskfile.yml:7-8`, `Taskfile.yml:30-47`).
 
 ## VPS environment and systemd
 
@@ -217,7 +218,6 @@ claude mcp remove pushover -s local
 
 - A missing closing quote in a systemd `Environment=` line silently drops that variable.
 - Run `systemctl daemon-reload` after every unit-file edit and before restart.
-- Use `task build --force` when an expected source change does not appear in `bin/pushover`.
 - OAuth configuration failures stop startup with an error that identifies the invalid or absent value (`config.go:190-250`, `internal/oauth/config.go:25-63`).
 - Leave `PUSHOVER_HTTP_DISABLE_LOCALHOST_PROTECTION=true` behind the supplied nginx proxy.
   Its default is true because mcp-go would otherwise reject the forwarded public `Host` header as a DNS-rebinding risk (`config.go:61-75`, `http_server.go:42-45`).

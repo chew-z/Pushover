@@ -43,7 +43,7 @@ func guardedRequest(t *testing.T, guard *authGuard, token string) *httptest.Resp
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	recorder := httptest.NewRecorder()
-	guard.protectMCP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })).ServeHTTP(recorder, req)
+	guard.protectMCP(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })).ServeHTTP(recorder, req)
 	return recorder
 }
 

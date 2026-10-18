@@ -24,7 +24,7 @@ func showMCPHelp(fs *flag.FlagSet, out io.Writer, progName string) {
 	fmt.Fprintln(out, "\nEnvironment Variables:")
 	fmt.Fprintln(out, "  APP_KEY                        Pushover application key (required to run the server)")
 	fmt.Fprintln(out, "  RECIPIENT_KEY                  Pushover recipient key (required to run the server)")
-	fmt.Fprintln(out, "  DEVICE_NAME, DEFAULT_TITLE, PUSHOVER_PRIORITY, PUSHOVER_SOUND, PUSHOVER_EXPIRE")
+	fmt.Fprintln(out, "  DEVICE_NAME, DEFAULT_TITLE, PUSHOVER_PRIORITY, PUSHOVER_SOUND, PUSHOVER_EXPIRE, PUSHOVER_RETRY")
 	fmt.Fprintln(out, "  PUSHOVER_HTTP_ADDRESS          Server bind address (default \"127.0.0.1:8080\")")
 	fmt.Fprintln(out, "  PUSHOVER_HTTP_PATH             Endpoint path (default \"/mcp\")")
 	fmt.Fprintln(out, "  PUSHOVER_HTTP_STATELESS, PUSHOVER_HTTP_HEARTBEAT, PUSHOVER_HTTP_TIMEOUT")

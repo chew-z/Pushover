@@ -13,7 +13,7 @@ tags: [operations, deployment, oauth]
 ## Configuration
 
 The following table covers every application environment variable read by the current code.
-Configuration loading and defaults are in `config.go:68-80` and `config.go:129-185`.
+Configuration loading and defaults are in `config.go:95-142` and `config.go:157-241`.
 Logging reads `PUSHOVER_LOG_LEVEL` in `logging.go:9-29`.
 
 | Variable | Default | Meaning |
@@ -45,8 +45,10 @@ Logging reads `PUSHOVER_LOG_LEVEL` in `logging.go:9-29`.
 | `PUSHOVER_MCP_REFRESH_TTL` | `720h` | OAuth refresh-token lifetime. |
 | `PUSHOVER_LOG_LEVEL` | `info` | JSON log threshold: `debug`, `info`, `warn`, or `error`. |
 
-When OAuth is enabled, it enables HTTP authentication and requires a signing secret of at least 32 bytes (`config.go:159-161`, `config.go:220-234`).
-OAuth also validates the issuer, resource, login user, password hash, and token lifetimes at startup (`config.go:239-250`, `internal/oauth/config.go:25-63`).
+When OAuth is enabled, it enables HTTP authentication and requires a signing secret of at least 32 bytes (`config.go:215-217`, `config.go:265-275`).
+OAuth also validates the issuer, resource, login user, password hash, and token lifetimes at startup (`config.go:281-292`, `internal/oauth/config.go:25-63`).
+A malformed value in any `PUSHOVER_*` variable, such as `PUSHOVER_PRIORITY=high` or `PUSHOVER_RETRY=soon`, stops startup with the variable name and the value;
+an explicit `PUSHOVER_EXPIRE` or `PUSHOVER_RETRY` is taken as given and range-checked, not replaced by a default (`config.go:111-142`, `config.go:319-361`).
 
 ## Build
 
@@ -218,8 +220,8 @@ claude mcp remove pushover -s local
 
 - A missing closing quote in a systemd `Environment=` line silently drops that variable.
 - Run `systemctl daemon-reload` after every unit-file edit and before restart.
-- OAuth configuration failures stop startup with an error that identifies the invalid or absent value (`config.go:190-250`, `internal/oauth/config.go:25-63`).
+- OAuth configuration failures stop startup with an error that identifies the invalid or absent value (`config.go:244-292`, `internal/oauth/config.go:25-63`).
 - Leave `PUSHOVER_HTTP_DISABLE_LOCALHOST_PROTECTION=true` behind the supplied nginx proxy.
-  Its default is true because mcp-go would otherwise reject the forwarded public `Host` header as a DNS-rebinding risk (`config.go:61-75`, `http_server.go:42-45`).
+  Its default is true because mcp-go would otherwise reject the forwarded public `Host` header as a DNS-rebinding risk (`config.go:102`, `config.go:181`, `http_server.go:42-45`).
 - OAuth state is in memory, so restart loses refresh state and eventually requires a new login.
   See [OPEN_ITEMS.md](OPEN_ITEMS.md#debt) for the access-token caveat.

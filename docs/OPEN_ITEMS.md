@@ -13,11 +13,8 @@ tags: [open-items]
 
 ## Decisions waiting on a human
 
-- **Static token lifetime.** Access and static JWTs cannot be revoked before expiry; `protectMCP` (`auth.go:123`) never consults the store.
-  The static token default is 744h (`mcp_cli.go:70`). Decided on 2026-10-18 to keep 744h and stateless validation and document it in ARCHITECTURE.md;
-  revisit only if a token leaks.
 - **Acceptance sweep.** The connector plan's second criterion (priorities -1 to 1 with URL, a chart attachment, a glance on the watch) has not been run;
-  only login plus `send_notification` is recorded (`STATUS.md:36`).
+  only login plus `send_notification` is recorded (`STATUS.md:37`).
 - **Redeploy with the loopback bind.** `tmp/pushover.service` and the OPERATIONS sample now bind `127.0.0.1:8092`;
   the unit on karma.rrj.pl still binds `:8092` until it is redeployed and `:8092` is confirmed closed from outside.
 - **First tag.** `v1.0.0` is agreed and the build is ready for it (`main.go:15` defaults to `dev`); the tag has not been created.
@@ -45,7 +42,7 @@ Still open from that review:
   `ParseArgs` tracks whether only priority was supplied.
   Message construction treats `-ttl 0`, `-timestamp 0`, `-e 0` and `-r 0` as unset (`pushover.go:70-130`).
 - **Typo guard rejects some one-word messages.** A first word within one edit or one transposition of `mcp`, `cancel` or `glance`
-  (for example `map`) is refused as a misspelled subcommand (`main.go:16-40`); use `-m` for such a message.
+  (for example `map`) is refused as a misspelled subcommand (`main.go:21-39`); use `-m` for such a message.
 - **Port the 2026-10-18 OAuth fixes to Alerts and polcritique:** rate-limit tests, wrong-secret test, login semaphore, consent text, comment repairs (`e731dec`).
 - **Live check pending: do Glance responses carry `X-Limit` headers?** The client accepts a successful response without quota headers
   and reports quota as unknown (`glance.go:110-120`).

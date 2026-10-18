@@ -26,7 +26,7 @@ The repository root is one `main` package, and `internal/oauth` is its only subp
 | `cli.go` | Parses the notification CLI and sends it (`cli.go:111-217`). |
 | `cancel_cli.go` | Validates receipts and runs `cancel` (`cancel_cli.go:11-70`). |
 | `glance_cli.go` | Parses and sends `glance` updates (`glance_cli.go:30-85`). |
-| `config.go` | Loads and validates application, MCP, and OAuth settings (`config.go:83-264`). |
+| `config.go` | Loads and validates application, MCP, and OAuth settings (`config.go:30-306`). |
 | `attachment.go` | Validates path or base64 image attachments (`attachment.go:16-105`). |
 | `pushover.go` | Defines the client seam, messages, and response formatting (`pushover.go:18-190`). |
 | `auth.go` | Implements JWT profiles, guard, and actor context (`auth.go:15-201`). |
@@ -73,7 +73,7 @@ OAuth means either the static profile or the configured OAuth profile is accepte
 
 | Route | Open mode | Static mode | OAuth mode | Notes |
 | --- | --- | --- | --- | --- |
-| `PUSHOVER_HTTP_PATH` (normally `/mcp`) | Open | Static | OAuth | Guarded route (`config.go:68-78`, `http_server.go:56-60`). |
+| `PUSHOVER_HTTP_PATH` (normally `/mcp`) | Open | Static | OAuth | Guarded route (`config.go:96-97`, `http_server.go:56-60`). |
 | `/health` | Open | Open | Open | Health document (`http_server.go:60-62`, `http_server.go:111-120`). |
 | `/capabilities` | Open | Open | Open | Tool schemas and auth state (`http_server.go:60-62`, `http_server.go:122-177`). |
 | Protected-resource metadata, bare and resource-path forms | Absent | Absent | Open | Both forms mount (`internal/oauth/mount.go:15-21`). |
@@ -86,7 +86,7 @@ There is no HTTP `/generate-token` route.
 ## Authentication and actor propagation
 
 `MCPConfig` enables authentication from `-auth-enabled` or `PUSHOVER_AUTH_ENABLED`.
-OAuth forces authentication on when `PUSHOVER_MCP_OAUTH` is true (`config.go:129-161`).
+OAuth forces authentication on when `PUSHOVER_MCP_OAUTH` is true (`config.go:157-241`).
 Authentication uses the configured secret to parse an HS256 bearer JWT with a required expiration and non-empty username (`auth.go:73-99`).
 
 | Profile | Required issuer | Required audience | Required scope |
@@ -94,7 +94,7 @@ Authentication uses the configured secret to parse an HS256 bearer JWT with a re
 | Static | `pushover-mcp` | `pushover-mcp-user` | None |
 | OAuth | Configured OAuth issuer | Configured OAuth resource | `pushover` by default |
 
-The profile rows above are selected by `newAuthGuard` (`auth.go:101-119`, `internal/oauth/config.go:27-41`).
+The profile rows above are selected by `newAuthGuard` (`auth.go:113-119`, `internal/oauth/config.go:27-41`).
 `protectMCP` accepts a token only when issuer and audience match a configured pair, and requires exact scope for the OAuth pair (`auth.go:121-150`).
 
 Validation is stateless: `protectMCP` never consults the store, so an access token or a static token cannot be revoked before it expires.
@@ -129,7 +129,8 @@ The HTTP guard separately caps the entire MCP request body at 4 MiB (`auth.go:15
 ## Configuration boundaries
 
 `.env` is autoloaded during process initialization (`main.go:3-9`).
-`LoadConfig` reads application and notification defaults (`config.go:83-118`).
-`NewMCPConfig` validates HTTP, authentication, OAuth, and Pushover values before transport starts (`config.go:120-250`).
-OAuth requires an enabled authentication secret of at least 32 bytes (`config.go:220-234`).
+`LoadConfig` reads application and notification defaults (`config.go:111-142`).
+Every `PUSHOVER_*` value either parses or stops startup, and `Config.Validate` range-checks it on the CLI paths too (`config.go:44-52`).
+`NewMCPConfig` validates HTTP, authentication, OAuth, and Pushover values before transport starts (`config.go:145-278`).
+OAuth requires an enabled authentication secret of at least 32 bytes (`config.go:265-275`).
 OAuth validates issuer, resource, login, password hash, signer, and refresh lifetime (`internal/oauth/config.go:27-63`).

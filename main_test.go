@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"io"
 	"log/slog"
 	"net/http"
@@ -175,6 +177,33 @@ func TestParseArgs_ShowHelp(t *testing.T) {
 
 	if !cliArgs.ShowHelp {
 		t.Error("Expected ShowHelp to be true")
+	}
+}
+
+func TestShowMainHelpIncludesRetry(t *testing.T) {
+	var output bytes.Buffer
+	fs := flag.NewFlagSet("pushover", flag.ContinueOnError)
+	fs.SetOutput(&output)
+	fs.Int("retry", 0, "Retry interval in seconds for emergency messages (min 30)")
+
+	showMainHelp(fs, "pushover")
+
+	if !strings.Contains(output.String(), "-retry") {
+		t.Error("main help does not contain -retry")
+	}
+	if !strings.Contains(output.String(), "PUSHOVER_RETRY") {
+		t.Error("main help does not contain PUSHOVER_RETRY")
+	}
+}
+
+func TestShowMCPHelpIncludesRetry(t *testing.T) {
+	var output bytes.Buffer
+	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
+
+	showMCPHelp(fs, &output, "pushover")
+
+	if !strings.Contains(output.String(), "PUSHOVER_RETRY") {
+		t.Error("MCP help does not contain PUSHOVER_RETRY")
 	}
 }
 

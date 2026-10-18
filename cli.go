@@ -62,6 +62,7 @@ func showMainHelp(fs *flag.FlagSet, progName string) {
 	fmt.Fprintln(out, "  PUSHOVER_PRIORITY Default priority")
 	fmt.Fprintln(out, "  PUSHOVER_SOUND    Default sound")
 	fmt.Fprintln(out, "  PUSHOVER_EXPIRE   Default expire time")
+	fmt.Fprintln(out, "  PUSHOVER_RETRY    Default retry interval for emergency messages")
 }
 
 // ParseArgs parses command-line arguments using the flag package

@@ -138,7 +138,9 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 
 // runMCPServerWithTransport starts the MCP server with the specified transport mode
 func runMCPServerWithTransport(transport string, authEnabled bool) error {
-	setupServerLogging(transport)
+	if err := setupServerLogging(transport); err != nil {
+		return fmt.Errorf("configure logging: %w", err)
+	}
 
 	// Load MCP configuration
 	config, err := NewMCPConfig(authEnabled)

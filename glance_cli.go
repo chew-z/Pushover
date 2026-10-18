@@ -72,7 +72,14 @@ func runGlanceCommand(args []string, stdout, stderr io.Writer) error {
 		return fmt.Errorf("invalid Glance: %w", err)
 	}
 
-	client, recipient, err := newPushoverClient(LoadConfig())
+	config, err := LoadConfig()
+	if err != nil {
+		return fmt.Errorf("configuration loading failed: %w", err)
+	}
+	if err := config.Validate(); err != nil {
+		return fmt.Errorf("configuration validation failed: %w", err)
+	}
+	client, recipient, err := newPushoverClient(config)
 	if err != nil {
 		return fmt.Errorf("failed to create Pushover client: %w", err)
 	}

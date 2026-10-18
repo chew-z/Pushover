@@ -270,11 +270,11 @@ func TestMCPConfig_Validation(t *testing.T) {
 		{"emergency priority requires expire", func(c *MCPConfig) {
 			c.PushoverDefaultPriority = int(pushover.PriorityEmergency)
 			c.PushoverDefaultExpire = 0
-		}, true, "PUSHOVER_EXPIRE must be > 0"},
+		}, true, "expire must be between"},
 		{"emergency priority requires retry", func(c *MCPConfig) {
 			c.PushoverDefaultPriority = int(pushover.PriorityEmergency)
 			c.PushoverDefaultRetry = 0
-		}, true, "PUSHOVER_RETRY must be >= 30"},
+		}, true, "retry must be at least"},
 	}
 
 	for _, tc := range testCases {
@@ -641,22 +641,28 @@ func TestCapabilitiesEndpoint_WrongMethod(t *testing.T) {
 func TestParseEnvDuration(t *testing.T) {
 	t.Run("valid duration", func(t *testing.T) {
 		t.Setenv("TEST_DUR", "5m")
-		got := parseEnvDuration("TEST_DUR", 30*time.Second)
+		got, err := parseEnvDuration("TEST_DUR", 30*time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if got != 5*time.Minute {
 			t.Errorf("got %v, want 5m", got)
 		}
 	})
 
-	t.Run("invalid duration falls back to default", func(t *testing.T) {
+	t.Run("invalid duration returns an error", func(t *testing.T) {
 		t.Setenv("TEST_DUR", "notaduration")
-		got := parseEnvDuration("TEST_DUR", 10*time.Second)
-		if got != 10*time.Second {
-			t.Errorf("got %v, want default 10s", got)
+		_, err := parseEnvDuration("TEST_DUR", 10*time.Second)
+		if err == nil {
+			t.Fatal("parseEnvDuration() error = nil, want error")
 		}
 	})
 
 	t.Run("empty env falls back to default", func(t *testing.T) {
-		got := parseEnvDuration("TEST_DUR_UNSET", 15*time.Second)
+		got, err := parseEnvDuration("TEST_DUR_UNSET", 15*time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if got != 15*time.Second {
 			t.Errorf("got %v, want default 15s", got)
 		}
@@ -699,20 +705,78 @@ func TestParseEnvStringSlice(t *testing.T) {
 // --- hasSubcommand Tests ---
 
 func TestHasSubcommand(t *testing.T) {
-	if sub, ok := hasSubcommand([]string{"pushover", "mcp"}); !ok || sub != "mcp" {
-		t.Errorf("got (%q, %v), want (mcp, true)", sub, ok)
+	if sub, ok, err := hasSubcommand([]string{"pushover", "mcp"}); err != nil || !ok || sub != "mcp" {
+		t.Errorf("got (%q, %v, %v), want (mcp, true, nil)", sub, ok, err)
 	}
-	if sub, ok := hasSubcommand([]string{"pushover", "cancel"}); !ok || sub != "cancel" {
-		t.Errorf("got (%q, %v), want (cancel, true)", sub, ok)
+	if sub, ok, err := hasSubcommand([]string{"pushover", "cancel"}); err != nil || !ok || sub != "cancel" {
+		t.Errorf("got (%q, %v, %v), want (cancel, true, nil)", sub, ok, err)
 	}
-	if sub, ok := hasSubcommand([]string{"pushover", "glance"}); !ok || sub != "glance" {
-		t.Errorf("got (%q, %v), want (glance, true)", sub, ok)
+	if sub, ok, err := hasSubcommand([]string{"pushover", "glance"}); err != nil || !ok || sub != "glance" {
+		t.Errorf("got (%q, %v, %v), want (glance, true, nil)", sub, ok, err)
 	}
-	if _, ok := hasSubcommand([]string{"pushover", "unknown"}); ok {
-		t.Error("Expected false for unknown subcommand")
+	if _, ok, err := hasSubcommand([]string{"pushover", "unknown"}); err != nil || ok {
+		t.Errorf("got (%v, %v), want (false, nil)", ok, err)
 	}
-	if _, ok := hasSubcommand([]string{"pushover"}); ok {
-		t.Error("Expected false for no subcommand")
+	if _, ok, err := hasSubcommand([]string{"pushover"}); err != nil || ok {
+		t.Errorf("got (%v, %v), want (false, nil)", ok, err)
+	}
+}
+
+func TestHasSubcommandTypos(t *testing.T) {
+	testCases := []struct {
+		name       string
+		args       []string
+		wantSub    string
+		wantFound  bool
+		wantErrFor string
+	}{
+		{"cancel typo", []string{"pushover", "cancl"}, "", false, "cancel"},
+		{"mcp typo", []string{"pushover", "mpc"}, "", false, "mcp"},
+		{"glance typo", []string{"pushover", "glanc"}, "", false, "glance"},
+		{"ordinary message", []string{"pushover", "hello"}, "", false, ""},
+		{"exact subcommand", []string{"pushover", "cancel"}, "cancel", true, ""},
+		{"flag", []string{"pushover", "-m"}, "", false, ""},
+		{"mcp substitution typo", []string{"pushover", "map"}, "", false, "mcp"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			subcommand, found, err := hasSubcommand(tc.args)
+			if subcommand != tc.wantSub || found != tc.wantFound {
+				t.Fatalf("hasSubcommand() = (%q, %t, %v), want (%q, %t, ...)", subcommand, found, err, tc.wantSub, tc.wantFound)
+			}
+			if tc.wantErrFor == "" {
+				if err != nil {
+					t.Fatalf("hasSubcommand() error = %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErrFor) {
+				t.Fatalf("hasSubcommand() error = %v, want text %q", err, tc.wantErrFor)
+			}
+		})
+	}
+}
+
+func TestLevenshtein(t *testing.T) {
+	testCases := []struct {
+		a, b string
+		want int
+	}{
+		{"", "", 0},
+		{"abc", "abc", 0},
+		{"kitten", "sitting", 3},
+		{"cancl", "cancel", 1},
+		{"mpc", "mcp", 2},
+	}
+
+	for _, tc := range testCases {
+		if got := levenshtein(tc.a, tc.b); got != tc.want {
+			t.Errorf("levenshtein(%q, %q) = %d, want %d", tc.a, tc.b, got, tc.want)
+		}
+	}
+	if got := levenshtein("hello", "cancel"); got <= 1 {
+		t.Errorf("levenshtein(hello, cancel) = %d, want > 1", got)
 	}
 }
 
@@ -726,23 +790,36 @@ func TestHasSubcommand(t *testing.T) {
 
 func TestParseLogLevel(t *testing.T) {
 	cases := []struct {
-		input string
-		want  slog.Level
+		input           string
+		want            slog.Level
+		wantErr         bool
+		wantErrContains []string
 	}{
-		{"debug", slog.LevelDebug},
-		{"DEBUG", slog.LevelDebug},
-		{"info", slog.LevelInfo},
-		{"warn", slog.LevelWarn},
-		{"warning", slog.LevelWarn},
-		{"error", slog.LevelError},
-		{" error ", slog.LevelError},
-		{"", slog.LevelInfo},
-		{"bogus", slog.LevelInfo},
+		{"debug", slog.LevelDebug, false, nil},
+		{"DEBUG", slog.LevelDebug, false, nil},
+		{"info", slog.LevelInfo, false, nil},
+		{"warn", slog.LevelWarn, false, nil},
+		{"WARN", slog.LevelWarn, false, nil},
+		{"warning", slog.LevelWarn, false, nil},
+		{"error", slog.LevelError, false, nil},
+		{" error ", slog.LevelError, false, nil},
+		{"", slog.LevelInfo, false, nil},
+		{"bogus", slog.LevelInfo, true, nil},
+		{"treace", slog.LevelInfo, true, []string{"PUSHOVER_LOG_LEVEL", "treace"}},
 	}
 
 	for _, tc := range cases {
-		if got := parseLogLevel(tc.input); got != tc.want {
+		got, err := parseLogLevel(tc.input)
+		if got != tc.want {
 			t.Errorf("parseLogLevel(%q) = %v, want %v", tc.input, got, tc.want)
+		}
+		if (err != nil) != tc.wantErr {
+			t.Errorf("parseLogLevel(%q) error = %v, want error %t", tc.input, err, tc.wantErr)
+		}
+		for _, want := range tc.wantErrContains {
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Errorf("parseLogLevel(%q) error = %v, want text %q", tc.input, err, want)
+			}
 		}
 	}
 }
@@ -756,7 +833,9 @@ func TestSetupServerLogging(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stderr = w
 
-	setupServerLogging("http")
+	if err := setupServerLogging("http"); err != nil {
+		t.Fatal(err)
+	}
 	slog.Info("should be filtered")
 	slog.Warn("visible message", "key", "value")
 

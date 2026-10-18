@@ -181,9 +181,6 @@ func ParseArgs(args []string) (*CLIArgs, error) {
 
 // Run encapsulates the main application logic for easier testing
 func Run(args []string, client PushoverClient) error {
-	// Load configuration
-	config := LoadConfig()
-
 	// Parse command-line arguments
 	cliArgs, err := ParseArgs(args)
 	if err != nil {
@@ -193,6 +190,13 @@ func Run(args []string, client PushoverClient) error {
 	// Handle help and version flags
 	if cliArgs.ShowHelp || cliArgs.ShowVersion {
 		return nil // Already handled in ParseArgs
+	}
+	config, err := LoadConfig()
+	if err != nil {
+		return fmt.Errorf("configuration loading failed: %w", err)
+	}
+	if err := config.Validate(); err != nil {
+		return fmt.Errorf("configuration validation failed: %w", err)
 	}
 	attachment, err := loadAttachment(context.Background(), cliArgs.AttachmentPath, "", cliArgs.AttachmentType)
 	if err != nil {

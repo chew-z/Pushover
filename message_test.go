@@ -93,7 +93,7 @@ func TestCreateMessageTTL(t *testing.T) {
 	}{
 		{"TTL set", 60, time.Minute, ""},
 		{"TTL unset", 0, 0, ""},
-		{"negative TTL", -1, 0, "ttl must be at least 1 second"},
+		{"negative TTL", -1, 0, "ttl must not be negative"},
 	}
 
 	for _, tc := range testCases {
@@ -158,7 +158,7 @@ func TestCreateMessageTimestamp(t *testing.T) {
 	}{
 		{"timestamp omitted", 0, ""},
 		{"timestamp set", 1700000000, ""},
-		{"negative timestamp", -1, "timestamp must be a positive Unix time in seconds"},
+		{"negative timestamp", -1, "timestamp must not be negative"},
 	}
 
 	for _, tc := range testCases {

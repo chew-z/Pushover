@@ -40,6 +40,19 @@ func TestRunPriorityOverride(t *testing.T) {
 	}
 }
 
+func TestRunEmergencyRejectsShortRetry(t *testing.T) {
+	t.Setenv("PUSHOVER_PRIORITY", "-1")
+
+	mock := &MockPushoverClient{}
+	err := Run([]string{"pushover", "-m", "x", "-p", "2", "-r", "5"}, mock)
+	if err == nil || !strings.Contains(err.Error(), "retry") {
+		t.Fatalf("Run() error = %v, want retry error", err)
+	}
+	if mock.lastMessage != nil {
+		t.Fatalf("mock received a message: %#v", mock.lastMessage)
+	}
+}
+
 // TestParseArgsPrioritySet verifies that ParseArgs retains priority flag presence independently of its value.
 func TestParseArgsPrioritySet(t *testing.T) {
 	testCases := []struct {
@@ -182,7 +195,7 @@ func TestRunTTL(t *testing.T) {
 		{
 			name:      "negative TTL",
 			args:      []string{"pushover", "-m", "hi", "-ttl", "-5"},
-			wantError: "ttl must be at least 1 second",
+			wantError: "ttl must not be negative",
 		},
 	}
 

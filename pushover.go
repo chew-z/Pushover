@@ -72,10 +72,10 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 		return nil, errors.New("html and monospace are mutually exclusive")
 	}
 	if cliArgs.TTL < 0 {
-		return nil, errors.New("ttl must be at least 1 second")
+		return nil, errors.New("ttl must not be negative")
 	}
 	if cliArgs.Timestamp < 0 {
-		return nil, errors.New("timestamp must be a positive Unix time in seconds")
+		return nil, errors.New("timestamp must not be negative")
 	}
 	if utf8.RuneCountInString(cliArgs.URL) > 512 {
 		return nil, errors.New("url must be at most 512 characters")
@@ -92,21 +92,17 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 		title = config.DefaultTitle
 	}
 
-	message := pushover.NewMessageWithTitle(text, title)
-
 	// Set priority when the caller explicitly supplied one, including zero.
 	priority := config.Priority
 	if cliArgs.PrioritySet {
 		priority = cliArgs.Priority
 	}
-	message.Priority = priority
 
 	// Set sound (CLI args override config)
 	sound := config.Sound
 	if cliArgs.Sound != "" {
 		sound = cliArgs.Sound
 	}
-	message.Sound = sound
 
 	// Set expire time (CLI args override config)
 	expireTime := config.ExpireTime
@@ -116,13 +112,20 @@ func CreateMessage(text, title string, config Config, cliArgs *CLIArgs) (*pushov
 	if expireTime > maxExpireSeconds {
 		return nil, fmt.Errorf("expire must be at most %d seconds", maxExpireSeconds)
 	}
-	message.Expire = time.Duration(expireTime) * time.Second
 
 	// Set retry interval (CLI args override config; required for emergency priority)
 	retryTime := config.RetryTime
 	if cliArgs.RetryTime != 0 {
 		retryTime = cliArgs.RetryTime
 	}
+	if err := validateEmergency(priority, expireTime, retryTime); err != nil {
+		return nil, err
+	}
+
+	message := pushover.NewMessageWithTitle(text, title)
+	message.Priority = priority
+	message.Sound = sound
+	message.Expire = time.Duration(expireTime) * time.Second
 	message.Retry = time.Duration(retryTime) * time.Second
 
 	// Set device name (CLI args override config)

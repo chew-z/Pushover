@@ -57,7 +57,14 @@ func runCancelCommand(args []string, stdout, stderr io.Writer) error {
 		return fmt.Errorf("invalid receipt: %w", err)
 	}
 
-	client, _, err := newPushoverClient(LoadConfig())
+	config, err := LoadConfig()
+	if err != nil {
+		return fmt.Errorf("configuration loading failed: %w", err)
+	}
+	if err := config.Validate(); err != nil {
+		return fmt.Errorf("configuration validation failed: %w", err)
+	}
+	client, _, err := newPushoverClient(config)
 	if err != nil {
 		return fmt.Errorf("failed to create Pushover client: %w", err)
 	}

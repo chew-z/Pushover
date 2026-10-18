@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	_ "github.com/joho/godotenv/autoload"
 )
@@ -12,24 +13,93 @@ import (
 // can inject the build version with -ldflags "-X main.version=...".
 var version = "1.0.0"
 
-// hasSubcommand checks if the first argument is a subcommand
-func hasSubcommand(args []string) (string, bool) {
+// hasSubcommand reports whether args[1] names a subcommand. A value within
+// Levenshtein distance 1 of a known subcommand, or with one adjacent pair
+// transposed, is treated as a typo and returned as an error, so a misspelled
+// subcommand is not sent as a notification message.
+func hasSubcommand(args []string) (subcommand string, found bool, err error) {
 	if len(args) < 2 {
-		return "", false
+		return "", false, nil
 	}
 
-	subcommand := args[1]
+	subcommand = args[1]
 	switch subcommand {
 	case "mcp", "cancel", "glance":
-		return subcommand, true
-	default:
-		return "", false
+		return subcommand, true, nil
 	}
+	if !strings.HasPrefix(subcommand, "-") {
+		for _, name := range []string{"mcp", "cancel", "glance"} {
+			if levenshtein(subcommand, name) == 1 || hasAdjacentTransposition(subcommand, name) {
+				return "", false, fmt.Errorf("unknown subcommand %q, did you mean %q?", subcommand, name)
+			}
+		}
+	}
+	return "", false, nil
+}
+
+// levenshtein returns the edit distance between two strings, measured in runes.
+func levenshtein(a, b string) int {
+	aRunes := []rune(a)
+	bRunes := []rune(b)
+	previous := make([]int, len(bRunes)+1)
+	current := make([]int, len(bRunes)+1)
+
+	for j := range previous {
+		previous[j] = j
+	}
+	for i, aRune := range aRunes {
+		current[0] = i + 1
+		for j, bRune := range bRunes {
+			cost := 0
+			if aRune != bRune {
+				cost = 1
+			}
+			current[j+1] = min(previous[j+1]+1, current[j]+1, previous[j]+cost)
+		}
+		previous, current = current, previous
+	}
+
+	return previous[len(bRunes)]
+}
+
+// hasAdjacentTransposition reports whether two rune strings differ by one adjacent swap.
+func hasAdjacentTransposition(a, b string) bool {
+	aRunes := []rune(a)
+	bRunes := []rune(b)
+	if len(aRunes) != len(bRunes) {
+		return false
+	}
+
+	firstDifference := -1
+	for i := range aRunes {
+		if aRunes[i] == bRunes[i] {
+			continue
+		}
+		if firstDifference == -1 {
+			firstDifference = i
+			continue
+		}
+		if i != firstDifference+1 || aRunes[firstDifference] != bRunes[i] || aRunes[i] != bRunes[firstDifference] {
+			return false
+		}
+		for j := i + 1; j < len(aRunes); j++ {
+			if aRunes[j] != bRunes[j] {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func main() {
 	// Dispatch subcommands before the default notification CLI.
-	if subcommand, hasSubcmd := hasSubcommand(os.Args); hasSubcmd {
+	subcommand, hasSubcmd, err := hasSubcommand(os.Args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	if hasSubcmd {
 		switch subcommand {
 		case "mcp":
 			if err := runMCPCommand(os.Args, os.Stdin, os.Stdout, os.Stderr); err != nil {
@@ -51,7 +121,7 @@ func main() {
 	}
 
 	// Default CLI mode
-	err := Run(os.Args, nil)
+	err = Run(os.Args, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

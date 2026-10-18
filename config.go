@@ -24,6 +24,33 @@ type Config struct {
 	RetryTime    int
 }
 
+// validateEmergency enforces the Pushover API rules for emergency priority:
+// retry must be at least 30 seconds and expire must be 1..maxExpireSeconds.
+// Other priorities have no retry/expire constraints.
+func validateEmergency(priority, expire, retry int) error {
+	if priority != int(pushover.PriorityEmergency) {
+		return nil
+	}
+	if retry < 30 {
+		return fmt.Errorf("retry must be at least 30 seconds for emergency priority, got %d", retry)
+	}
+	if expire < 1 || expire > maxExpireSeconds {
+		return fmt.Errorf("expire must be between 1 and %d seconds for emergency priority, got %d", maxExpireSeconds, expire)
+	}
+	return nil
+}
+
+// Validate checks the Pushover configuration values.
+func (c Config) Validate() error {
+	if c.Priority < -2 || c.Priority > 2 {
+		return fmt.Errorf("PUSHOVER_PRIORITY must be between -2 and 2, got %d", c.Priority)
+	}
+	if c.ExpireTime > maxExpireSeconds {
+		return fmt.Errorf("PUSHOVER_EXPIRE must be at most %d seconds, got %d", maxExpireSeconds, c.ExpireTime)
+	}
+	return validateEmergency(c.Priority, c.ExpireTime, c.RetryTime)
+}
+
 // MCPConfig holds the MCP server configuration
 type MCPConfig struct {
 	// HTTP transport settings
@@ -80,12 +107,11 @@ const (
 	defaultRetryTime                      = 60
 )
 
-// LoadConfig loads the configuration from environment variables
-func LoadConfig() Config {
-	// Parse priority with error handling, default to PriorityLow
-	priority := int(pushover.PriorityLow)
-	if p, err := strconv.Atoi(os.Getenv("PUSHOVER_PRIORITY")); err == nil {
-		priority = p
+// LoadConfig loads the configuration from environment variables.
+func LoadConfig() (Config, error) {
+	priority, err := parseEnvInt("PUSHOVER_PRIORITY", int(pushover.PriorityLow))
+	if err != nil {
+		return Config{}, err
 	}
 
 	sound := os.Getenv("PUSHOVER_SOUND")
@@ -93,16 +119,14 @@ func LoadConfig() Config {
 		sound = pushover.SoundVibrate
 	}
 
-	// Parse expire time with error handling, default to 180 seconds
-	expireTime := 180
-	if e, err := strconv.Atoi(os.Getenv("PUSHOVER_EXPIRE")); err == nil && e != 0 {
-		expireTime = e
+	expireTime, err := parseEnvInt("PUSHOVER_EXPIRE", defaultExpireTime)
+	if err != nil {
+		return Config{}, err
 	}
 
-	// Parse retry time with error handling, default to 60 seconds
-	retryTime := defaultRetryTime
-	if r, err := strconv.Atoi(os.Getenv("PUSHOVER_RETRY")); err == nil && r >= 30 {
-		retryTime = r
+	retryTime, err := parseEnvInt("PUSHOVER_RETRY", defaultRetryTime)
+	if err != nil {
+		return Config{}, err
 	}
 
 	return Config{
@@ -114,12 +138,15 @@ func LoadConfig() Config {
 		Sound:        sound,
 		ExpireTime:   expireTime,
 		RetryTime:    retryTime,
-	}
+	}, nil
 }
 
-// NewMCPConfig creates a new MCP configuration from environment variables and flags
+// NewMCPConfig creates a new MCP configuration from environment variables and flags.
 func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
-	config := loadMCPConfig(authEnabledFlag)
+	config, err := loadMCPConfig(authEnabledFlag)
+	if err != nil {
+		return nil, fmt.Errorf("configuration loading failed: %w", err)
+	}
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
@@ -127,43 +154,71 @@ func NewMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
 }
 
 // loadMCPConfig reads MCP configuration without validating it.
-func loadMCPConfig(authEnabledFlag bool) *MCPConfig {
-	config := &MCPConfig{
-		// HTTP transport settings
-		HTTPAddress:                    getEnvWithDefault("PUSHOVER_HTTP_ADDRESS", defaultHTTPAddress),
-		HTTPPath:                       getEnvWithDefault("PUSHOVER_HTTP_PATH", defaultHTTPPath),
-		HTTPStateless:                  parseEnvBool("PUSHOVER_HTTP_STATELESS", defaultHTTPStateless),
-		HTTPHeartbeat:                  parseEnvDuration("PUSHOVER_HTTP_HEARTBEAT", defaultHTTPHeartbeat),
-		HTTPTimeout:                    parseEnvDuration("PUSHOVER_HTTP_TIMEOUT", defaultHTTPTimeout),
-		HTTPCORSEnabled:                parseEnvBool("PUSHOVER_HTTP_CORS_ENABLED", defaultHTTPCORSEnabled),
-		HTTPCORSOrigins:                parseEnvStringSlice("PUSHOVER_HTTP_CORS_ORIGINS", []string{}),
-		HTTPDisableLocalhostProtection: parseEnvBool("PUSHOVER_HTTP_DISABLE_LOCALHOST_PROTECTION", defaultHTTPDisableLocalhostProtection),
+func loadMCPConfig(authEnabledFlag bool) (*MCPConfig, error) {
+	config := &MCPConfig{}
 
-		// Authentication settings - prioritize command-line flags over environment
-		AuthEnabled:            authEnabledFlag || parseEnvBool("PUSHOVER_AUTH_ENABLED", defaultAuthEnabled),
-		AuthSecretKey:          getEnvWithDefault("PUSHOVER_AUTH_SECRET_KEY", ""),
-		OAuthEnabled:           parseEnvBool("PUSHOVER_MCP_OAUTH", false),
-		OAuthIssuer:            os.Getenv("PUSHOVER_MCP_ISSUER"),
-		OAuthResource:          os.Getenv("PUSHOVER_MCP_RESOURCE"),
-		OAuthLoginUser:         os.Getenv("PUSHOVER_MCP_LOGIN_USER"),
-		OAuthLoginPasswordHash: os.Getenv("PUSHOVER_MCP_LOGIN_PASSWORD_HASH"),
-		OAuthAccessTTL:         parseEnvDuration("PUSHOVER_MCP_ACCESS_TTL", defaultOAuthAccessTTL),
-		OAuthRefreshTTL:        parseEnvDuration("PUSHOVER_MCP_REFRESH_TTL", defaultOAuthRefreshTTL),
-
-		// Pushover-specific settings
-		PushoverAppKey:       os.Getenv("APP_KEY"),
-		PushoverRecipientKey: os.Getenv("RECIPIENT_KEY"),
-		PushoverDeviceName:   os.Getenv("DEVICE_NAME"),
-		PushoverDefaultTitle: os.Getenv("DEFAULT_TITLE"),
+	// HTTP transport settings
+	config.HTTPAddress = getEnvWithDefault("PUSHOVER_HTTP_ADDRESS", defaultHTTPAddress)
+	config.HTTPPath = getEnvWithDefault("PUSHOVER_HTTP_PATH", defaultHTTPPath)
+	var err error
+	config.HTTPStateless, err = parseEnvBool("PUSHOVER_HTTP_STATELESS", defaultHTTPStateless)
+	if err != nil {
+		return nil, err
 	}
+	config.HTTPHeartbeat, err = parseEnvDuration("PUSHOVER_HTTP_HEARTBEAT", defaultHTTPHeartbeat)
+	if err != nil {
+		return nil, err
+	}
+	config.HTTPTimeout, err = parseEnvDuration("PUSHOVER_HTTP_TIMEOUT", defaultHTTPTimeout)
+	if err != nil {
+		return nil, err
+	}
+	config.HTTPCORSEnabled, err = parseEnvBool("PUSHOVER_HTTP_CORS_ENABLED", defaultHTTPCORSEnabled)
+	if err != nil {
+		return nil, err
+	}
+	config.HTTPCORSOrigins = parseEnvStringSlice("PUSHOVER_HTTP_CORS_ORIGINS", []string{})
+	config.HTTPDisableLocalhostProtection, err = parseEnvBool("PUSHOVER_HTTP_DISABLE_LOCALHOST_PROTECTION", defaultHTTPDisableLocalhostProtection)
+	if err != nil {
+		return nil, err
+	}
+
+	// Authentication settings - prioritize command-line flags over environment
+	envAuthEnabled, err := parseEnvBool("PUSHOVER_AUTH_ENABLED", defaultAuthEnabled)
+	if err != nil {
+		return nil, err
+	}
+	config.AuthEnabled = authEnabledFlag || envAuthEnabled
+	config.AuthSecretKey = getEnvWithDefault("PUSHOVER_AUTH_SECRET_KEY", "")
+	config.OAuthEnabled, err = parseEnvBool("PUSHOVER_MCP_OAUTH", false)
+	if err != nil {
+		return nil, err
+	}
+	config.OAuthIssuer = os.Getenv("PUSHOVER_MCP_ISSUER")
+	config.OAuthResource = os.Getenv("PUSHOVER_MCP_RESOURCE")
+	config.OAuthLoginUser = os.Getenv("PUSHOVER_MCP_LOGIN_USER")
+	config.OAuthLoginPasswordHash = os.Getenv("PUSHOVER_MCP_LOGIN_PASSWORD_HASH")
+	config.OAuthAccessTTL, err = parseEnvDuration("PUSHOVER_MCP_ACCESS_TTL", defaultOAuthAccessTTL)
+	if err != nil {
+		return nil, err
+	}
+	config.OAuthRefreshTTL, err = parseEnvDuration("PUSHOVER_MCP_REFRESH_TTL", defaultOAuthRefreshTTL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Pushover-specific settings
+	config.PushoverAppKey = os.Getenv("APP_KEY")
+	config.PushoverRecipientKey = os.Getenv("RECIPIENT_KEY")
+	config.PushoverDeviceName = os.Getenv("DEVICE_NAME")
+	config.PushoverDefaultTitle = os.Getenv("DEFAULT_TITLE")
 	if config.OAuthEnabled {
 		config.AuthEnabled = true
 	}
 
-	// Parse Pushover priority with error handling, default to PriorityLow
-	config.PushoverDefaultPriority = int(pushover.PriorityLow)
-	if p, err := strconv.Atoi(os.Getenv("PUSHOVER_PRIORITY")); err == nil {
-		config.PushoverDefaultPriority = p
+	config.PushoverDefaultPriority, err = parseEnvInt("PUSHOVER_PRIORITY", int(pushover.PriorityLow))
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse Pushover sound with default
@@ -172,19 +227,17 @@ func loadMCPConfig(authEnabledFlag bool) *MCPConfig {
 		config.PushoverDefaultSound = pushover.SoundVibrate
 	}
 
-	// Parse expire time with error handling, default to 180 seconds
-	config.PushoverDefaultExpire = defaultExpireTime
-	if e, err := strconv.Atoi(os.Getenv("PUSHOVER_EXPIRE")); err == nil && e != 0 {
-		config.PushoverDefaultExpire = e
+	config.PushoverDefaultExpire, err = parseEnvInt("PUSHOVER_EXPIRE", defaultExpireTime)
+	if err != nil {
+		return nil, err
 	}
 
-	// Parse retry time with error handling, default to 60 seconds
-	config.PushoverDefaultRetry = defaultRetryTime
-	if r, err := strconv.Atoi(os.Getenv("PUSHOVER_RETRY")); err == nil && r >= 30 {
-		config.PushoverDefaultRetry = r
+	config.PushoverDefaultRetry, err = parseEnvInt("PUSHOVER_RETRY", defaultRetryTime)
+	if err != nil {
+		return nil, err
 	}
 
-	return config
+	return config, nil
 }
 
 // Validate checks the configuration for required fields and valid values
@@ -201,20 +254,8 @@ func (c *MCPConfig) Validate() error {
 		return errors.New("RECIPIENT_KEY environment variable is required")
 	}
 
-	// Validate priority range (-2 to 2)
-	if c.PushoverDefaultPriority < -2 || c.PushoverDefaultPriority > 2 {
-		return fmt.Errorf("PUSHOVER_PRIORITY must be between -2 and 2, got %d", c.PushoverDefaultPriority)
-	}
-	if c.PushoverDefaultExpire > maxExpireSeconds {
-		return fmt.Errorf("PUSHOVER_EXPIRE must be at most %d seconds, got %d", maxExpireSeconds, c.PushoverDefaultExpire)
-	}
-
-	// Validate expire and retry for emergency priority
-	if c.PushoverDefaultPriority == int(pushover.PriorityEmergency) && c.PushoverDefaultExpire <= 0 {
-		return errors.New("PUSHOVER_EXPIRE must be > 0 for emergency priority messages")
-	}
-	if c.PushoverDefaultPriority == int(pushover.PriorityEmergency) && c.PushoverDefaultRetry < 30 {
-		return errors.New("PUSHOVER_RETRY must be >= 30 seconds for emergency priority messages")
+	if err := c.ToLegacyConfig().Validate(); err != nil {
+		return err
 	}
 
 	// Validate auth secret key if auth is enabled
@@ -274,34 +315,49 @@ func getEnvWithDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-// parseEnvBool parses a boolean environment variable with a default value
-func parseEnvBool(key string, defaultValue bool) bool {
+// parseEnvBool parses a boolean environment variable with a default value.
+func parseEnvBool(key string, defaultValue bool) (bool, error) {
 	value := os.Getenv(key)
 	if value == "" {
-		return defaultValue
+		return defaultValue, nil
 	}
 
 	parsed, err := strconv.ParseBool(value)
 	if err != nil {
-		return defaultValue
+		return false, fmt.Errorf("%s: invalid value %q: %w", key, value, err)
 	}
 
-	return parsed
+	return parsed, nil
 }
 
-// parseEnvDuration parses a duration environment variable with a default value
-func parseEnvDuration(key string, defaultValue time.Duration) time.Duration {
+// parseEnvDuration parses a duration environment variable with a default value.
+func parseEnvDuration(key string, defaultValue time.Duration) (time.Duration, error) {
 	value := os.Getenv(key)
 	if value == "" {
-		return defaultValue
+		return defaultValue, nil
 	}
 
 	parsed, err := time.ParseDuration(value)
 	if err != nil {
-		return defaultValue
+		return 0, fmt.Errorf("%s: invalid value %q: %w", key, value, err)
 	}
 
-	return parsed
+	return parsed, nil
+}
+
+// parseEnvInt parses an integer environment variable with a default value.
+func parseEnvInt(key string, defaultValue int) (int, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue, nil
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("%s: invalid value %q: %w", key, value, err)
+	}
+
+	return parsed, nil
 }
 
 // parseEnvStringSlice parses a comma-separated string environment variable into a slice

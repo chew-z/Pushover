@@ -162,11 +162,7 @@ func formatSendResult(resp *pushover.Response, actor string) string {
 	if resp != nil && resp.Receipt != "" {
 		parts = append(parts, "Receipt: "+resp.Receipt)
 	}
-	if resp != nil && resp.Limit != nil {
-		quota := "Quota: " + strconv.Itoa(resp.Limit.Remaining) + "/" + strconv.Itoa(resp.Limit.Total) + " remaining"
-		if !resp.Limit.NextReset.IsZero() {
-			quota += ", resets " + resp.Limit.NextReset.UTC().Format(time.RFC3339)
-		}
+	if quota := formatQuota(resp); quota != "" {
 		parts = append(parts, quota)
 	}
 
@@ -179,4 +175,17 @@ func formatSendResult(resp *pushover.Response, actor string) string {
 	}
 
 	return text
+}
+
+// formatQuota formats Pushover quota metadata, or returns an empty string when it is unavailable.
+func formatQuota(resp *pushover.Response) string {
+	if resp == nil || resp.Limit == nil {
+		return ""
+	}
+
+	quota := "Quota: " + strconv.Itoa(resp.Limit.Remaining) + "/" + strconv.Itoa(resp.Limit.Total) + " remaining"
+	if !resp.Limit.NextReset.IsZero() {
+		quota += ", resets " + resp.Limit.NextReset.UTC().Format(time.RFC3339)
+	}
+	return quota
 }

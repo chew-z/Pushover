@@ -27,6 +27,8 @@ tags: [status]
 
 ## Recent changes
 
+- 2026-10-18 — Added Pushover Glances support through the `send_glance` MCP tool and `glance` CLI subcommand,
+  including explicit empty-field clearing, quota reporting, and real-library response-path tests.
 - 2026-10-17 — Notification inputs and MCP parity expanded: added a testable client seam; cancellation and Glances client methods;
   explicit priority zero; URL/title, HTML/monospace, TTL and timestamp support; shared send-result formatting; the 10,800-second
   emergency expire cap; and `/capabilities` metadata derived from registered MCP tools.

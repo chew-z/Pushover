@@ -49,6 +49,7 @@ func showMainHelp(progName string) {
 	fmt.Fprintln(os.Stdout, "\nSend push notifications via Pushover")
 	fmt.Fprintln(os.Stdout, "\nSubcommands:")
 	fmt.Fprintln(os.Stdout, "  cancel            Cancel an emergency notification by receipt")
+	fmt.Fprintln(os.Stdout, "  glance            Send an Apple Watch complication Glance update")
 	fmt.Fprintln(os.Stdout, "  mcp               Start MCP server mode")
 	fmt.Fprintln(os.Stdout, "\nOptions:")
 	fmt.Fprintln(os.Stdout, "  -attachment string")

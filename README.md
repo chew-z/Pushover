@@ -124,6 +124,9 @@ PUSHOVER_EXPIRE=180
 
 # Cancel emergency notification retries
 ./bin/pushover cancel -receipt RECEIPT
+
+# Update an Apple Watch complication Glance
+./bin/pushover glance -title "Widgets Sold" -count 42 -percent 75
 ```
 
 #### Command Line Options
@@ -320,6 +323,23 @@ Cancel retries of an emergency (priority 2) notification by its receipt.
 **Parameters:**
 
 - `receipt` (required): Receipt returned when the emergency notification was sent (30 alphanumeric characters)
+
+#### `send_glance`
+
+Update an Apple Watch complication Glance. Use Glances only for Apple Watch complications; wait at least 20 minutes
+between updates, send at most 50 per day, and allow up to 10 minutes for an update to appear. Passing `""` clears a
+string field.
+
+**Parameters:**
+
+- `title` (optional): Glance title (max 100 characters)
+- `text` (optional): Main Glance text (max 100 characters)
+- `subtext` (optional): Secondary Glance text (max 100 characters)
+- `count` (optional): Integer count, including negative values
+- `percent` (optional): Integer percentage from 0 through 100
+- `device` (optional): Target device name
+
+The equivalent CLI command is `pushover glance -title TITLE -text TEXT -subtext SUBTEXT -count COUNT -percent PERCENT -device DEVICE`.
 
 ## Development
 

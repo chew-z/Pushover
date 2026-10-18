@@ -65,10 +65,10 @@ func TestCapabilitiesReflectRegisteredTools(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode capabilities response: %v", err)
 	}
-	if len(payload.Tools) != 2 {
-		t.Fatalf("tool count = %d, want 2", len(payload.Tools))
+	if len(payload.Tools) != 3 {
+		t.Fatalf("tool count = %d, want 3", len(payload.Tools))
 	}
-	var sendTool, cancelTool *struct {
+	var sendTool, cancelTool, glanceTool *struct {
 		Name        string `json:"name"`
 		InputSchema struct {
 			Properties map[string]json.RawMessage `json:"properties"`
@@ -81,6 +81,8 @@ func TestCapabilitiesReflectRegisteredTools(t *testing.T) {
 			sendTool = &payload.Tools[index]
 		case "cancel_emergency":
 			cancelTool = &payload.Tools[index]
+		case "send_glance":
+			glanceTool = &payload.Tools[index]
 		}
 	}
 	if sendTool == nil {
@@ -88,6 +90,9 @@ func TestCapabilitiesReflectRegisteredTools(t *testing.T) {
 	}
 	if cancelTool == nil {
 		t.Fatal("cancel_emergency is not listed")
+	}
+	if glanceTool == nil {
+		t.Fatal("send_glance is not listed")
 	}
 	for _, property := range []string{"url", "ttl", "retry"} {
 		if _, ok := sendTool.InputSchema.Properties[property]; !ok {
@@ -116,6 +121,11 @@ func TestCapabilitiesReflectRegisteredTools(t *testing.T) {
 	}
 	if !receiptRequired {
 		t.Errorf("cancel_emergency inputSchema.required = %v, want receipt", cancelTool.InputSchema.Required)
+	}
+	for _, property := range []string{"title", "text", "subtext", "count", "percent", "device"} {
+		if _, ok := glanceTool.InputSchema.Properties[property]; !ok {
+			t.Errorf("send_glance inputSchema.properties is missing %q", property)
+		}
 	}
 }
 

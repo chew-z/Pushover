@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -101,6 +102,35 @@ func setupMCPServer(config *MCPConfig) *server.MCPServer {
 			),
 		),
 		wrapWithLogging(handleCancelEmergency, "cancel_emergency", config),
+	)
+	mcpServer.AddTool(
+		mcp.NewTool("send_glance",
+			mcp.WithDescription("Send an Apple Watch complication Glance update via Pushover. Use only for Apple Watch complications; wait at least 20 minutes between updates and send at most 50 per day. Updates can take up to 10 minutes to appear. Passing an empty string clears that field."),
+			mcp.WithString("title",
+				mcp.Description("Optional Glance title; an empty string clears it"),
+				mcp.MaxLength(pushover.GlancesMessageMaxTitleLength),
+			),
+			mcp.WithString("text",
+				mcp.Description("Optional Glance main text; an empty string clears it"),
+				mcp.MaxLength(pushover.GlancesMessageMaxTextLength),
+			),
+			mcp.WithString("subtext",
+				mcp.Description("Optional Glance secondary text; an empty string clears it"),
+				mcp.MaxLength(pushover.GlancesMessageMaxSubtextLength),
+			),
+			mcp.WithNumber("count",
+				mcp.Description("Optional integer count, including negative values"),
+			),
+			mcp.WithNumber("percent",
+				mcp.Description("Optional integer percentage from 0 through 100"),
+				mcp.Min(0),
+				mcp.Max(100),
+			),
+			mcp.WithString("device",
+				mcp.Description("Optional target device name"),
+			),
+		),
+		wrapWithLogging(handleSendGlance, "send_glance", config),
 	)
 
 	return mcpServer
@@ -261,6 +291,27 @@ func handleCancelEmergency(ctx context.Context, request mcp.CallToolRequest, con
 
 	actor, _ := actorFrom(ctx)
 	return mcp.NewToolResultText(formatCancelResult(receipt, actor)), nil
+}
+
+// handleSendGlance handles the send_glance tool.
+func handleSendGlance(ctx context.Context, request mcp.CallToolRequest, config *MCPConfig) (*mcp.CallToolResult, error) {
+	arguments := request.GetArguments()
+	glance, err := buildGlance(arguments, request.GetString("device", ""))
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid Glance: %v", err)), nil
+	}
+
+	client, recipient, err := newPushoverClient(config.ToLegacyConfig())
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to create Pushover client: %v", err)), nil
+	}
+	response, err := client.SendGlanceUpdate(glance, recipient)
+	if err != nil && !errors.Is(err, pushover.ErrInvalidHeaders) {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to send Glance: %v", err)), nil
+	}
+
+	actor, _ := actorFrom(ctx)
+	return mcp.NewToolResultText(formatGlanceResult(response, actor)), nil
 }
 
 // formatCancelResult formats a successful emergency notification cancellation result.

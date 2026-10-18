@@ -20,7 +20,7 @@ func hasSubcommand(args []string) (string, bool) {
 
 	subcommand := args[1]
 	switch subcommand {
-	case "mcp", "cancel":
+	case "mcp", "cancel", "glance":
 		return subcommand, true
 	default:
 		return "", false
@@ -38,6 +38,11 @@ func main() {
 			}
 		case "cancel":
 			if err := runCancelCommand(os.Args, os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+		case "glance":
+			if err := runGlanceCommand(os.Args, os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}

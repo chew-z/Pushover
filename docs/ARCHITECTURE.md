@@ -15,7 +15,7 @@ tags: [architecture]
 One Go binary, `pushover`, with two modes.
 The default mode sends a single Pushover notification and exits — the CLI used by shell runners.
 The `mcp` subcommand runs a Model Context Protocol server over STDIO or streamable HTTP,
-exposing one tool, `send_notification`, to an MCP client (`main.go:28`, `mcp_server.go:13`).
+exposing `send_notification`, `cancel_emergency`, and `send_glance` to an MCP client (`main.go:28`, `mcp_server.go:13`).
 There is no database, no queue and no persistent state; every path ends in a call to the Pushover API.
 
 ## Components
@@ -29,7 +29,7 @@ All code is one flat `package main` at the repository root; files split by conce
 | `config.go` | Environment configuration, defaults, validation (`config.go:74`, `config.go:111`, `config.go:167`) |
 | `pushover.go` | `PushoverClient` interface, message construction, send (`pushover.go:11`, `pushover.go:47`) |
 | `mcp_cli.go` | `mcp` flags, token generation, transport selection (`mcp_cli.go:53`) |
-| `mcp_server.go` | MCP server setup, `send_notification` schema, auth wrapper (`mcp_server.go:13`, `mcp_server.go:123`) |
+| `mcp_server.go` | MCP server setup, notification, emergency-cancellation, and Glance tool schemas, auth wrapper (`mcp_server.go:13`, `mcp_server.go:123`) |
 | `http_server.go` | Streamable HTTP transport, `/health`, `/capabilities`, CORS (`http_server.go:33`) |
 | `auth.go` | JWT issue and validation, auth context helpers (`auth.go:42`, `auth.go:102`) |
 | `logging.go` | JSON `slog` setup on stderr (`logging.go:25`) |
@@ -46,9 +46,10 @@ Positional arguments remain a fallback: `pushover <message> [title]` (`cli.go:11
 MCP: `main` → `parseMCPArgs` (`main.go:34`) → `runMCPServerWithTransport` (`mcp_server.go:62`)
 → `setupMCPServer` registers `send_notification` with schema validation (`mcp_server.go:13`)
 → either `server.ServeStdio` (`mcp_server.go:77`) or `HTTPServerManager.Start` (`mcp_server.go:81`, `http_server.go:33`).
-Each tool call passes through `wrapWithAuth` (`mcp_server.go:90`), which enforces JWT only when the request arrived over HTTP
-(`mcp_server.go:99`), then `handleSendNotification` builds and sends the message (`mcp_server.go:123`).
-The tool result carries the response text and, for emergency priority, the receipt (`mcp_server.go:167`).
+Each tool call passes through its logging wrapper, which records the authenticated actor when present; the HTTP guard enforces
+JWT only when the request arrived over HTTP. `handleSendNotification` builds and sends notifications, while the other tools
+cancel emergency retries or send Glance updates. The notification result carries the response text and, for emergency priority,
+the receipt.
 
 The HTTP transport mounts the MCP handler at `/` (`http_server.go:66`) with the configured endpoint path handled by mcp-go
 (`config.go:62`), plus `/health` (`http_server.go:69`) and `/capabilities`, which derives advertised tool metadata from registered tools (`http_server.go:123`).

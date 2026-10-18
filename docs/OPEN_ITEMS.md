@@ -38,9 +38,10 @@ Verified against the code on 2026-10-17.
 - **Trading integration requests are unimplemented.** From `docs/HANDOFF-2026-10-17-trading.md`, in priority order:
   `url` and `url_title`; image attachment is now implemented (2.5 MiB library limit, path or base64); `html` and
   `monospace` (mutually exclusive); `ttl`; `timestamp`; return `X-Limit-App-Remaining`; emergency cancellation is now
-  implemented; a `send_glance` tool for
-  Pushover Glances. The receipt is already returned (`mcp_server.go:167`). The underlying `gregdel/pushover` v1.4.0
-  covers the message fields; the MCP schema and CLI flags need to grow.
+  implemented; Pushover Glances are now available through `send_glance` and `pushover glance`. The receipt is already
+  returned (`mcp_server.go:167`).
+- **Live check pending: does the real glances API send X-Limit headers?** The client tolerates missing headers after a
+  successful Glance response and reports the quota as unknown, but this has not been verified against Pushover's live API.
 - **README is stale.** The architecture section cites outdated line counts, and the HTTP section documents
   `POST /generate-token`, which is not routed. Build commands still describe the pre-merge Taskfile.
 - **Unused auth helpers.** `getUserID` and `getRole` are unused and kept under `nolint:unused`

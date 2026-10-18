@@ -265,8 +265,7 @@ func handleCancelEmergency(ctx context.Context, request mcp.CallToolRequest, con
 
 // formatCancelResult formats a successful emergency notification cancellation result.
 func formatCancelResult(receipt, actor string) string {
-	//nolint:misspell // The user-facing cancellation text is specified with two Ls.
-	result := "Emergency notification " + receipt + " cancelled"
+	result := "Emergency notification " + receipt + " canceled"
 	if actor != "" {
 		result += " (sent by " + actor + ")"
 	}

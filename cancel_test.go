@@ -11,8 +11,6 @@ import (
 )
 
 // TestHandleCancelEmergency verifies successful emergency cancellation results.
-//
-//nolint:misspell // The test asserts the required two-L user-facing spelling.
 func TestHandleCancelEmergency(t *testing.T) {
 	receipt := "uQiRzpo4DXghDmr9QzzfQu27cmVRsG"
 	testCases := []struct {
@@ -20,8 +18,8 @@ func TestHandleCancelEmergency(t *testing.T) {
 		actor string
 		want  string
 	}{
-		{name: "without actor", want: "Emergency notification uQiRzpo4DXghDmr9QzzfQu27cmVRsG cancelled"},
-		{name: "with actor", actor: "alice", want: "Emergency notification uQiRzpo4DXghDmr9QzzfQu27cmVRsG cancelled (sent by alice)"},
+		{name: "without actor", want: "Emergency notification uQiRzpo4DXghDmr9QzzfQu27cmVRsG canceled"},
+		{name: "with actor", actor: "alice", want: "Emergency notification uQiRzpo4DXghDmr9QzzfQu27cmVRsG canceled (sent by alice)"},
 	}
 
 	for _, tc := range testCases {
@@ -107,8 +105,6 @@ func TestHandleCancelEmergencyAPIError(t *testing.T) {
 }
 
 // TestRunCancelCommand verifies the cancel CLI command uses the Pushover client.
-//
-//nolint:misspell // The test asserts the required two-L user-facing spelling.
 func TestRunCancelCommand(t *testing.T) {
 	mock := &MockPushoverClient{}
 	swapNewPushoverClient(t, mock)
@@ -119,7 +115,7 @@ func TestRunCancelCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runCancelCommand() error = %v", err)
 	}
-	if want := "Emergency notification uQiRzpo4DXghDmr9QzzfQu27cmVRsG cancelled\n"; stdout.String() != want {
+	if want := "Emergency notification uQiRzpo4DXghDmr9QzzfQu27cmVRsG canceled\n"; stdout.String() != want {
 		t.Errorf("stdout = %q, want %q", stdout.String(), want)
 	}
 	if mock.lastReceipt != receipt {

@@ -48,7 +48,7 @@ The static Trading token still works.
   Fixed version injection by making `main.version` a variable (`main.go:11-13`).
 - 2026-10-17 — Go 1.27 upgrade: directive bumped to `1.27.0`, `go fix` applied until stable, and dependencies tidied.
 - 2026-10-17 — Release flow folded into `task release`, `run_release.sh` removed, and the stray root nginx snippet removed.
-- 2026-10-17 — Handoffs recorded: Trading integration requests and Pushover Glances (`docs/HANDOFF-2026-10-17-trading.md`).
+- 2026-10-17 — The Trading integration handoff was answered in [USING.md](USING.md#reply-to-the-trading-handoff-2026-10-17) and retired.
 - 2026-07-25 — Unit tests for auth, CORS, and CLI handlers; `errorlint`; structured JSON logging; tracked dependency checksums;
   CI and release automation; and Makefile replacement by Taskfile.
 - 2026-07-11 — HTTP transport can disable mcp-go localhost protection for reverse-proxy deployments.

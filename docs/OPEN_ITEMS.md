@@ -47,7 +47,8 @@ Still open from that review:
   Message construction treats `-ttl 0`, `-timestamp 0`, `-e 0` and `-r 0` as unset (`pushover.go:70-130`).
 - **Typo guard rejects some one-word messages.** A first word within one edit or one transposition of `mcp`, `cancel` or `glance`
   (for example `map`) is refused as a misspelled subcommand (`main.go:21-39`); use `-m` for such a message.
-- **Port the 2026-10-18 OAuth fixes to Alerts and polcritique:** rate-limit tests, wrong-secret test, login semaphore, consent text, comment repairs (`e731dec`).
+- **Port the 2026-10-18 OAuth fixes to polcritique:** rate-limit tests, wrong-secret test, login semaphore, consent text, comment repairs (`e731dec`).
+  Alerts done 2026-10-18 as `bb1e168`, deployed to karma the same day.
 - **Live check pending: do Glance responses carry `X-Limit` headers?** The client accepts a successful response without quota headers
   and reports quota as unknown (`glance.go:110-120`).
 - **No `golang-concurrency` skill is installed.** The scaffold offers it, but this checkout contains only the `golang-modern` project skill.
